@@ -14,8 +14,16 @@ import {
   Clock,
   ShieldCheck,
   Tag,
-  Palette
+  Palette,
+  MessageCircle,
+  Phone
 } from 'lucide-react';
+
+// ── Shop contact details ──────────────────────────────────────────────────────
+// Update these to your actual shop messenger / contact links
+const SHOP_FB_MESSENGER_URL = 'https://m.me/your.shop.page'; // Facebook Messenger
+const SHOP_FACEBOOK_URL = 'https://facebook.com/your.shop.page'; // FB Page
+// ─────────────────────────────────────────────────────────────────────────────
 import { PublicDressAvailability } from '@/lib/types/database';
 import { getPublicAvailability, checkDressAvailability } from '@/lib/services/api';
 import { PublicDressCard } from '@/components/public/PublicDressCard';
@@ -27,7 +35,7 @@ export default function PublicAvailabilityPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [colorFilter, setColorFilter] = useState<string>('all');
   const [sizeFilter, setSizeFilter] = useState<string>('all');
-  
+
   const [dresses, setDresses] = useState<PublicDressAvailability[]>([]);
   const [allCatalogDresses, setAllCatalogDresses] = useState<PublicDressAvailability[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -245,11 +253,10 @@ export default function PublicAvailabilityPage() {
                 <button
                   key={t.id}
                   onClick={() => setTypeFilter(t.id)}
-                  className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all border ${
-                    active
+                  className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all border ${active
                       ? 'bg-pink-600 text-white border-pink-600 shadow-sm'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
-                  }`}
+                    }`}
                 >
                   {t.label}
                 </button>
@@ -272,11 +279,10 @@ export default function PublicAvailabilityPage() {
                 <button
                   key={c.id}
                   onClick={() => setColorFilter(c.id)}
-                  className={`shrink-0 rounded-xl px-4 py-1.5 text-xs font-bold transition-all border ${
-                    active
+                  className={`shrink-0 rounded-xl px-4 py-1.5 text-xs font-bold transition-all border ${active
                       ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
-                  }`}
+                    }`}
                 >
                   {c.label}
                 </button>
@@ -412,11 +418,10 @@ export default function PublicAvailabilityPage() {
                         {formatPrice(selectedDress.default_price)}
                       </span>
                     </div>
-                    <span className={`text-[11px] font-extrabold px-3 py-1 rounded-full border ${
-                      selectedDress.is_available
+                    <span className={`text-[11px] font-extrabold px-3 py-1 rounded-full border ${selectedDress.is_available
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-rose-50 text-rose-700 border-rose-200'
-                    }`}>
+                      }`}>
                       {selectedDress.is_available ? '🟢 AVAILABLE' : '🔴 UNAVAILABLE'}
                     </span>
                   </div>
@@ -469,43 +474,78 @@ export default function PublicAvailabilityPage() {
 
               {/* Real-time Check Result Feedback Box */}
               {modalCheckResult.checked && (
-                <div
-                  className={`rounded-2xl p-4 border transition-all ${
-                    modalCheckResult.available
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                      : 'bg-rose-50 border-rose-200 text-rose-900'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {modalCheckResult.available ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-                    ) : (
-                      <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
-                    )}
+                modalCheckResult.available ? (
+                  /* ── AVAILABLE: Message Us CTA ─────────────────────────── */
+                  <div className="rounded-2xl overflow-hidden border border-emerald-200 shadow-sm">
+                    {/* Green status strip */}
+                    <div className="flex items-center gap-3 px-5 py-4 bg-emerald-600 text-white">
+                      <CheckCircle2 className="h-6 w-6 shrink-0" />
+                      <div>
+                        <p className="font-extrabold text-sm leading-tight">🎉 Great news! This dress is AVAILABLE!</p>
+                        <p className="text-emerald-100 text-xs mt-0.5 font-medium">
+                          {modalStartDate} → {modalEndDate}
+                        </p>
+                      </div>
+                    </div>
 
-                    <div className="flex-1 text-xs">
-                      <h5 className="font-extrabold text-sm">
-                        {modalCheckResult.available
-                          ? 'Great news! Dress is AVAILABLE for your dates'
-                          : 'Dress is NOT AVAILABLE for these dates'}
-                      </h5>
-                      <p className="mt-1 font-medium leading-relaxed">
-                        {modalCheckResult.available
-                          ? `This dress is completely open for booking from ${modalStartDate} to ${modalEndDate}.`
-                          : modalCheckResult.reason || 'This dress has an existing booking during your requested period.'}
+                    {/* Message CTA body */}
+                    <div className="p-5 bg-emerald-50 flex flex-col gap-4">
+                      <p className="text-xs text-emerald-900 font-semibold leading-relaxed text-center">
+                        Ready to reserve <span className="font-black">"{selectedDress?.name}"</span> for your event?<br />
+                        Message us now to secure your booking!
                       </p>
 
-                      {modalCheckResult.available && (
-                        <div className="mt-3 pt-3 border-t border-emerald-200/80 flex items-center gap-2">
-                          <ShieldCheck className="h-4 w-4 text-emerald-700" />
-                          <span className="font-bold text-emerald-800">
-                            Ready to reserve? Contact shop staff to secure your booking.
-                          </span>
-                        </div>
-                      )}
+                      {/* Primary: Messenger button */}
+                      <a
+                        href={`${SHOP_FB_MESSENGER_URL}?text=${encodeURIComponent(
+                          `Hi! I'd like to reserve the "${selectedDress?.name}" (${selectedDress?.color}, Size ${selectedDress?.size}) from ${modalStartDate} to ${modalEndDate}. Is it still available?`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2.5 w-full rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] px-5 py-3 text-sm font-extrabold text-white shadow-md transition-all"
+                      >
+                        <MessageCircle className="h-5 w-5" />
+                        Message Us on Messenger
+                      </a>
+
+                      {/* Secondary: Visit Facebook Page */}
+                      <a
+                        href={SHOP_FACEBOOK_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full rounded-xl border-2 border-blue-200 bg-white hover:bg-blue-50 active:scale-[0.98] px-5 py-2.5 text-xs font-bold text-blue-700 transition-all"
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z" />
+                        </svg>
+                        Visit Our Facebook Page
+                      </a>
+
+                      <p className="text-center text-[10px] text-emerald-700 font-medium flex items-center justify-center gap-1">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Booking confirmed only upon payment of deposit
+                      </p>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  /* ── NOT AVAILABLE: Warning ─────────────────────────────── */
+                  <div className="rounded-2xl p-4 border bg-rose-50 border-rose-200 text-rose-900">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="flex-1 text-xs">
+                        <h5 className="font-extrabold text-sm">Dress is NOT AVAILABLE for these dates</h5>
+                        <p className="mt-1 font-medium leading-relaxed">
+                          {modalCheckResult.reason || 'This dress has an existing booking during your requested period.'}
+                        </p>
+                        <div className="mt-3 pt-3 border-t border-rose-200/80">
+                          <p className="font-semibold text-rose-800 text-[11px]">
+                            Try different dates or browse other available dresses in our collection.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
               )}
             </div>
 
