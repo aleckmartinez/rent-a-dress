@@ -11,20 +11,6 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-  // If Supabase credentials are placeholders or empty (e.g. initial demo preview),
-  // allow request through or check auth cookie fallback
-  const isPlaceholder = !supabaseUrl || supabaseUrl.includes('placeholder');
-
-  if (isPlaceholder) {
-    const authCookie = request.cookies.get('demo_admin_session');
-    const path = request.nextUrl.pathname;
-    
-    if (path.startsWith('/admin') && !authCookie) {
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-    return response;
-  }
-
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {

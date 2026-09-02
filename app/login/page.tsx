@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Sparkles, Lock, Mail, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
@@ -18,20 +18,13 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const isLive = Boolean(url && !url.includes('placeholder') && url.startsWith('http'));
+      const supabase = createClient();
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password
+      });
 
-      if (isLive) {
-        const supabase = createClient();
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        if (authError) throw authError;
-      } else {
-        // Local demo admin session setting
-        document.cookie = 'demo_admin_session=true; path=/; max-age=86400';
-      }
+      if (authError) throw authError;
 
       router.push('/admin/dashboard');
       router.refresh();
@@ -40,12 +33,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickDemoLogin = () => {
-    document.cookie = 'demo_admin_session=true; path=/; max-age=86400';
-    router.push('/admin/dashboard');
-    router.refresh();
   };
 
   return (
@@ -59,7 +46,7 @@ export default function LoginPage() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
             Dress Rental Portal
           </h1>
-          <p className="text-xs text-slate-500 mt-1">Administrator Portal Sign In</p>
+          <p className="text-xs text-slate-500 mt-1">Administrator Sign In</p>
         </div>
 
         {/* Login Card */}
@@ -108,24 +95,12 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-pink-600 hover:bg-pink-700 py-3 text-sm font-semibold text-white shadow-sm transition-colors"
+              className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-pink-600 hover:bg-pink-700 py-3 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-50"
             >
               {loading ? 'Authenticating...' : 'Sign In to Dashboard'}
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>
-
-          {/* Quick Demo Access Bar */}
-          <div className="mt-6 pt-6 border-t border-slate-100 flex flex-col items-center">
-            <button
-              type="button"
-              onClick={handleQuickDemoLogin}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-pink-200 bg-pink-50/60 hover:bg-pink-100 py-2.5 text-xs font-semibold text-pink-700 transition-colors"
-            >
-              <ShieldCheck className="h-4 w-4 text-pink-600" />
-              Instant Demo Access (Skip for Local Testing)
-            </button>
-          </div>
         </div>
 
         <div className="mt-6 text-center text-xs text-slate-400">

@@ -29,7 +29,6 @@ export function AdminSidebar() {
     } catch (err) {
       console.error('Sign out error:', err);
     } finally {
-      document.cookie = 'demo_admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
       router.push('/login');
       router.refresh();
     }
@@ -147,7 +146,7 @@ export function AdminSidebar() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xs font-medium text-slate-900">Administrator</span>
-                <span className="text-[10px] text-slate-400">admin@dressrental.com</span>
+                <span className="text-[10px] text-slate-400">Auth Session Active</span>
               </div>
             </div>
             <button
