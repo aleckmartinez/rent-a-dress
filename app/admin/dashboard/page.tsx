@@ -18,6 +18,7 @@ import {
 import { getDresses, getRentals, getCustomers, getFinanceSummary } from '@/lib/services/api';
 import { Dress, Rental, Customer, FinanceSummary } from '@/lib/types/database';
 import { StatusBadge } from '@/components/admin/StatusBadge';
+import { formatOrderNumber } from '@/lib/utils/formatters';
 
 export default function AdminDashboardPage() {
   const [dresses, setDresses] = useState<Dress[]>([]);
@@ -211,6 +212,7 @@ export default function AdminDashboardPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <th className="pb-3 px-2">Order #</th>
                   <th className="pb-3 px-2">Customer</th>
                   <th className="pb-3 px-2">Dress</th>
                   <th className="pb-3 px-2">Rental Period</th>
@@ -221,8 +223,13 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {upcomingRentals.map((rental) => (
+                {upcomingRentals.map((rental, idx) => (
                   <tr key={rental.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-3 px-2 font-extrabold text-pink-600">
+                      <Link href={`/admin/rentals/${rental.id}`} className="hover:underline">
+                        {formatOrderNumber(rental.id, idx)}
+                      </Link>
+                    </td>
                     <td className="py-3 px-2 font-semibold text-slate-900">
                       {rental.customer?.full_name || 'Customer'}
                     </td>

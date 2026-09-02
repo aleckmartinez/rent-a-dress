@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Filter, CalendarCheck, Edit3, Eye } from 'lucide-react';
+import { Plus, Search, Filter, CalendarCheck, Edit3 } from 'lucide-react';
 import { getRentals, getDresses } from '@/lib/services/api';
-import { Rental, Dress, RentalOrderStatus } from '@/lib/types/database';
+import { Rental, Dress } from '@/lib/types/database';
 import { StatusBadge } from '@/components/admin/StatusBadge';
+import { formatOrderNumber, formatPrice } from '@/lib/utils/formatters';
 
 export default function AdminRentalsPage() {
   const [rentals, setRentals] = useState<Rental[]>([]);
@@ -45,9 +46,6 @@ export default function AdminRentalsPage() {
     loadData();
   };
 
-  const formatPrice = (p: number) =>
-    new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(p);
-
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
@@ -72,7 +70,7 @@ export default function AdminRentalsPage() {
           <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by customer name or dress name..."
+            placeholder="Search by order #, customer name, or dress name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none transition-colors"
@@ -137,18 +135,28 @@ export default function AdminRentalsPage() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="pb-3 px-3">Order #</th>
                   <th className="pb-3 px-3">Customer</th>
                   <th className="pb-3 px-3">Dress</th>
                   <th className="pb-3 px-3">Start Date</th>
                   <th className="pb-3 px-3">End Date</th>
+                  <th className="pb-3 px-3">Fulfillment</th>
                   <th className="pb-3 px-3">Total Price</th>
                   <th className="pb-3 px-3">Status</th>
                   <th className="pb-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rentals.map((rental) => (
+                {rentals.map((rental, idx) => (
                   <tr key={rental.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3 px-3">
+                      <Link
+                        href={`/admin/rentals/${rental.id}`}
+                        className="font-extrabold text-pink-600 hover:underline"
+                      >
+                        {formatOrderNumber(rental.id, rentals.length - 1 - idx)}
+                      </Link>
+                    </td>
                     <td className="py-3 px-3">
                       <Link
                         href={`/admin/customers/${rental.customer_id}`}
@@ -165,6 +173,15 @@ export default function AdminRentalsPage() {
                     </td>
                     <td className="py-3 px-3 text-slate-600 font-medium">{rental.rental_start_date}</td>
                     <td className="py-3 px-3 text-slate-600 font-medium">{rental.rental_end_date}</td>
+                    <td className="py-3 px-3">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                        rental.fulfillment_type === 'delivery'
+                          ? 'bg-sky-50 text-sky-700 border-sky-200'
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}>
+                        {rental.fulfillment_type === 'delivery' ? '🚚 Delivery' : '🏠 Pickup'}
+                      </span>
+                    </td>
                     <td className="py-3 px-3 font-extrabold text-slate-900">{formatPrice(rental.total_price)}</td>
                     <td className="py-3 px-3">
                       <StatusBadge status={rental.status} type="rental" size="sm" />

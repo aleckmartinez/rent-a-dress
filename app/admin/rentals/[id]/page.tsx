@@ -28,6 +28,7 @@ import {
 } from '@/lib/services/api';
 import { Rental, Dress, Customer, RentalOrderStatus, DepositStatus } from '@/lib/types/database';
 import { StatusBadge } from '@/components/admin/StatusBadge';
+import { formatOrderNumber } from '@/lib/utils/formatters';
 import { Modal } from '@/components/ui/Modal';
 
 export default function RentalDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -319,7 +320,7 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Order #{rental.id.slice(0, 8)}
+                Order {formatOrderNumber(rental.id)}
               </h1>
               <StatusBadge status={rental.status} type="rental" />
               <StatusBadge status={rental.deposit_status} type="deposit" size="sm" />
