@@ -43,14 +43,14 @@ export default function PublicAvailabilityPage() {
   const [checkingModalAvailability, setCheckingModalAvailability] = useState<boolean>(false);
 
   const DRESS_TYPES = [
-    { id: 'all', label: 'All Dress Types', icon: '✨' },
-    { id: 'Long Dress', label: 'Long Dress', icon: '👗' },
-    { id: 'Short Dress', label: 'Short Dress', icon: '👗' },
-    { id: 'Evening Gown', label: 'Evening Gown', icon: '💃' },
-    { id: 'Cocktail Dress', label: 'Cocktail Dress', icon: '🍸' },
-    { id: 'Ball Gown', label: 'Ball Gown', icon: '👑' },
-    { id: 'Midi Dress', label: 'Midi Dress', icon: '✨' },
-    { id: 'Prom Dress', label: 'Prom Dress', icon: '🌟' }
+    { id: 'all', label: 'All Dress Types' },
+    { id: 'Long Dress', label: 'Long Dress' },
+    { id: 'Short Dress', label: 'Short Dress' },
+    { id: 'Evening Gown', label: 'Evening Gown' },
+    { id: 'Cocktail Dress', label: 'Cocktail Dress' },
+    { id: 'Ball Gown', label: 'Ball Gown' },
+    { id: 'Midi Dress', label: 'Midi Dress' },
+    { id: 'Prom Dress', label: 'Prom Dress' }
   ];
 
   const COLOR_OPTIONS = [
@@ -150,62 +150,62 @@ export default function PublicAvailabilityPage() {
     new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(p);
 
   return (
-    <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans antialiased text-slate-900">
-      {/* Hero Header Section */}
-      <section className="bg-gradient-to-b from-pink-900 via-purple-950 to-slate-900 text-white py-12 px-4 sm:px-6 lg:px-8 shadow-xl">
+    <div className="min-h-screen bg-stone-50/40 flex flex-col font-sans antialiased text-slate-900">
+      {/* Minimal White / Cream Hero Header Section */}
+      <section className="bg-amber-50/40 border-b border-stone-200/60 py-10 px-4 sm:px-6 lg:px-8 shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-col items-center text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-pink-500/20 px-3.5 py-1 text-xs font-bold text-pink-300 border border-pink-400/30 backdrop-blur-md mb-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-pink-100/80 px-3.5 py-1 text-xs font-bold text-pink-700 border border-pink-200/60 mb-3">
             <Sparkles className="h-3.5 w-3.5" /> Luxury Dress Rental Collection
           </span>
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white max-w-2xl leading-tight">
-            Check Dress Availability & Book Your Dream Outfit
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 max-w-2xl leading-tight">
+            Check Dress Availability & Book Your Dream Gown
           </h1>
-          <p className="mt-3 text-sm text-pink-100/80 max-w-xl">
-            Browse our gorgeous gowns by category or select your event dates below to verify real-time availability.
+          <p className="mt-2 text-xs sm:text-sm text-slate-600 max-w-xl">
+            Filter our exclusive collection by dress type and color, or select your event dates to check real-time availability.
           </p>
 
-          {/* Quick Date Availability Filter Bar */}
+          {/* Minimal Date Availability Filter Card */}
           <form
             onSubmit={handleGlobalDateCheckSubmit}
-            className="mt-8 w-full max-w-3xl rounded-3xl bg-white/10 p-3 sm:p-4 backdrop-blur-md border border-white/20 shadow-2xl flex flex-col sm:flex-row items-center gap-3 text-left"
+            className="mt-6 w-full max-w-2xl rounded-2xl bg-white p-3 sm:p-4 border border-stone-200 shadow-soft flex flex-col sm:flex-row items-center gap-3 text-left"
           >
             <div className="flex-1 w-full">
-              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-pink-200 mb-1">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Event Start Date
               </label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-xl border border-white/20 bg-slate-900/60 px-3.5 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-pink-400"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
               />
             </div>
 
             <div className="flex-1 w-full">
-              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-pink-200 mb-1">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Return End Date
               </label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full rounded-xl border border-white/20 bg-slate-900/60 px-3.5 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-pink-400"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
               />
             </div>
 
-            <div className="w-full sm:w-auto self-end pt-2 sm:pt-0">
+            <div className="w-full sm:w-auto self-end pt-1 sm:pt-0">
               <button
                 type="submit"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-pink-600 hover:bg-pink-500 px-6 py-2.5 text-xs font-extrabold text-white shadow-lg transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-pink-600 hover:bg-pink-700 px-5 py-2 text-xs font-bold text-white shadow-sm transition-colors"
               >
-                <Search className="h-4 w-4" />
+                <Search className="h-3.5 w-3.5" />
                 Check Dates
               </button>
             </div>
           </form>
 
           {error && (
-            <p className="mt-3 text-xs font-semibold text-rose-300 bg-rose-950/60 px-4 py-1.5 rounded-full border border-rose-500/30">
+            <p className="mt-3 text-xs font-semibold text-rose-700 bg-rose-50 px-4 py-1.5 rounded-full border border-rose-200">
               {error}
             </p>
           )}
@@ -214,38 +214,64 @@ export default function PublicAvailabilityPage() {
 
       {/* Main Catalog & Interactive Filtering Grid */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
-        {/* Step 1: Category / Dress Type Tabs */}
+        {/* 1. Dress Types Filter Section (Text-only, no icons) */}
         <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2.5">
             <Tag className="h-4 w-4 text-pink-600" />
-            <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">1. Select Dress Category / Type</h2>
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Dress Types</h2>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {DRESS_TYPES.map((t) => {
               const active = typeFilter === t.id;
               return (
                 <button
                   key={t.id}
                   onClick={() => setTypeFilter(t.id)}
-                  className={`shrink-0 flex items-center gap-1.5 rounded-2xl px-4 py-2 text-xs font-extrabold transition-all duration-200 border ${
+                  className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all border ${
                     active
-                      ? 'bg-pink-600 text-white border-pink-600 shadow-md scale-105'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-pink-50 hover:border-pink-300'
+                      ? 'bg-pink-600 text-white border-pink-600 shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                   }`}
                 >
-                  <span>{t.icon}</span>
-                  <span>{t.label}</span>
+                  {t.label}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Step 2: Color & Search Filters */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-soft flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+        {/* 2. Available Colors Filter Section (Positioned directly below Dress Types) */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2.5">
+            <Palette className="h-4 w-4 text-pink-600" />
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Available Colors</h2>
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none flex-wrap">
+            {COLOR_OPTIONS.map((c) => {
+              const active = colorFilter === c.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setColorFilter(c.id)}
+                  className={`shrink-0 rounded-xl px-4 py-1.5 text-xs font-bold transition-all border ${
+                    active
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 3. Solo Search Field & Size Filter Bar */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+          <div className="relative w-full flex-1">
+            <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search dress by title or style..."
@@ -256,32 +282,12 @@ export default function PublicAvailabilityPage() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs">
-            <div className="flex items-center gap-1 text-slate-400 font-medium">
-              <Palette className="h-3.5 w-3.5" />
-              <span>Available Colors:</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {COLOR_OPTIONS.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setColorFilter(c.id)}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors border ${
-                    colorFilter === c.id
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <span className="text-xs font-medium text-slate-500">Size:</span>
             <select
               value={sizeFilter}
               onChange={(e) => setSizeFilter(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:border-pink-500 focus:outline-none ml-auto lg:ml-0"
+              className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:border-pink-500 focus:outline-none"
             >
               <option value="all">All Sizes</option>
               <option value="Small (S)">Small (S)</option>
@@ -306,7 +312,7 @@ export default function PublicAvailabilityPage() {
           <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center my-8">
             <Sparkles className="h-10 w-10 text-pink-300 mx-auto mb-2" />
             <h3 className="text-sm font-bold text-slate-800">No dresses found for selected filters</h3>
-            <p className="text-xs text-slate-500 mt-1">Try switching dress type categories or clearing search filters.</p>
+            <p className="text-xs text-slate-500 mt-1">Try switching dress type categories or resetting search query.</p>
             <button
               onClick={() => {
                 setTypeFilter('all');
@@ -503,7 +509,7 @@ export default function PublicAvailabilityPage() {
       )}
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-6 text-center text-xs border-t border-slate-800 mt-auto">
+      <footer className="bg-white text-slate-500 py-6 text-center text-xs border-t border-slate-200 mt-auto">
         <p>© 2026 Dress Rental Shop. All rights reserved.</p>
       </footer>
     </div>
