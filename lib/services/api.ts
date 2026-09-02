@@ -4,7 +4,6 @@ import {
   Customer,
   Rental,
   DressStatusHistory,
-  Expense,
   FinancialTransaction,
   PublicDressAvailability,
   DressOperationalStatus,
@@ -16,7 +15,6 @@ import {
   INITIAL_DRESSES,
   INITIAL_CUSTOMERS,
   INITIAL_RENTALS,
-  INITIAL_EXPENSES,
   INITIAL_TRANSACTIONS,
   INITIAL_STATUS_HISTORY
 } from '@/lib/supabase/store';
@@ -29,7 +27,6 @@ const isLiveSupabase = () => {
 let localDresses: Dress[] = [...INITIAL_DRESSES];
 let localCustomers: Customer[] = [...INITIAL_CUSTOMERS];
 let localRentals: Rental[] = [...INITIAL_RENTALS];
-let localExpenses: Expense[] = [...INITIAL_EXPENSES];
 let localTransactions: FinancialTransaction[] = [...INITIAL_TRANSACTIONS];
 let localHistory: DressStatusHistory[] = [...INITIAL_STATUS_HISTORY];
 
@@ -43,9 +40,6 @@ if (typeof window !== 'undefined') {
 
     const savedR = localStorage.getItem('rad_rentals');
     if (savedR) localRentals = JSON.parse(savedR);
-
-    const savedE = localStorage.getItem('rad_expenses');
-    if (savedE) localExpenses = JSON.parse(savedE);
 
     const savedT = localStorage.getItem('rad_transactions');
     if (savedT) localTransactions = JSON.parse(savedT);
@@ -63,7 +57,6 @@ function persistLocalState() {
       localStorage.setItem('rad_dresses', JSON.stringify(localDresses));
       localStorage.setItem('rad_customers', JSON.stringify(localCustomers));
       localStorage.setItem('rad_rentals', JSON.stringify(localRentals));
-      localStorage.setItem('rad_expenses', JSON.stringify(localExpenses));
       localStorage.setItem('rad_transactions', JSON.stringify(localTransactions));
       localStorage.setItem('rad_history', JSON.stringify(localHistory));
     } catch (e) {
@@ -144,7 +137,6 @@ export async function createDress(dressData: {
   name: string;
   color: string;
   size: string;
-  cost?: number;
   default_price: number;
   default_deposit?: number;
   main_photo_path?: string | null;
@@ -155,7 +147,6 @@ export async function createDress(dressData: {
     name: dressData.name,
     color: dressData.color,
     size: dressData.size,
-    cost: dressData.cost || 0,
     default_price: dressData.default_price,
     default_deposit: dressData.default_deposit || Math.round(dressData.default_price * 0.4),
     main_photo_path: dressData.main_photo_path || null,
@@ -177,37 +168,6 @@ export async function createDress(dressData: {
   }
 
   localDresses.unshift(newDress);
-
-  // Record acquisition cost expense if cost > 0
-  if (newDress.cost > 0) {
-    const exp: Expense = {
-      id: `e-${Date.now()}`,
-      category: 'Dress Purchase',
-      description: `Acquisition cost for dress: ${newDress.name}`,
-      amount: newDress.cost,
-      expense_date: new Date().toISOString().split('T')[0],
-      receipt_reference: null,
-      notes: 'Initial inventory acquisition cost',
-      created_by: 'admin-01',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    localExpenses.unshift(exp);
-
-    localTransactions.unshift({
-      id: `t-${Date.now()}`,
-      transaction_type: 'expense',
-      category: 'Dress Purchase',
-      reference_type: 'expense',
-      reference_id: exp.id,
-      amount: exp.amount,
-      transaction_date: exp.expense_date,
-      description: `Acquisition expense: ${newDress.name}`,
-      created_by: 'admin-01',
-      created_at: new Date().toISOString()
-    });
-  }
-
   persistLocalState();
   return newDress;
 }
@@ -338,6 +298,7 @@ export async function getCustomerById(id: string): Promise<Customer | null> {
 export async function findOrCreateCustomer(customerData: {
   full_name: string;
   contact_number: string;
+  address?: string | null;
   facebook_url?: string | null;
   notes?: string | null;
 }): Promise<Customer> {
@@ -354,6 +315,7 @@ export async function findOrCreateCustomer(customerData: {
       const { data: updated } = await (supabase.from('customers') as any)
         .update({
           full_name: customerData.full_name,
+          address: customerData.address ?? existing.address,
           facebook_url: customerData.facebook_url || existing.facebook_url,
           notes: customerData.notes || existing.notes,
           updated_at: new Date().toISOString()
@@ -369,6 +331,7 @@ export async function findOrCreateCustomer(customerData: {
       .insert({
         full_name: customerData.full_name,
         contact_number: cleanPhone,
+        address: customerData.address || null,
         facebook_url: customerData.facebook_url || null,
         notes: customerData.notes || null,
         created_by: user?.id || null
@@ -384,6 +347,7 @@ export async function findOrCreateCustomer(customerData: {
     localCustomers[existingIndex] = {
       ...localCustomers[existingIndex],
       full_name: customerData.full_name,
+      address: customerData.address ?? localCustomers[existingIndex].address,
       facebook_url: customerData.facebook_url || localCustomers[existingIndex].facebook_url,
       notes: customerData.notes || localCustomers[existingIndex].notes,
       updated_at: new Date().toISOString()
@@ -396,6 +360,7 @@ export async function findOrCreateCustomer(customerData: {
     id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `c-${Date.now()}`,
     full_name: customerData.full_name,
     contact_number: cleanPhone,
+    address: customerData.address || null,
     facebook_url: customerData.facebook_url || null,
     notes: customerData.notes || null,
     created_by: 'admin-01',
@@ -451,7 +416,7 @@ export async function checkDressAvailability(
   if (dress.operational_status !== 'available') {
     return {
       available: false,
-      reason: `Dress operational status is currently '${dress.operational_status.toUpperCase()}'. An admin must manually mark it Available before it can be booked.`
+      reason: `Dress status is currently '${dress.operational_status.toUpperCase()}'. It cannot be rented while on rent, in cleaning, or unavailable.`
     };
   }
 
@@ -475,7 +440,7 @@ export async function checkDressAvailability(
   if (conflicting) {
     return {
       available: false,
-      reason: `This dress is already booked from ${conflicting.rental_start_date} to ${conflicting.rental_end_date}. Please select different dates.`
+      reason: `This dress is already booked from ${conflicting.rental_start_date} to ${conflicting.rental_end_date}.`
     };
   }
 
@@ -563,6 +528,8 @@ export async function createRental(rentalData: {
   additional_charges: number;
   discount: number;
   deposit_amount?: number;
+  fulfillment_type?: 'pickup' | 'delivery';
+  delivery_address?: string | null;
   notes?: string | null;
   status?: RentalOrderStatus;
 }): Promise<Rental> {
@@ -579,6 +546,7 @@ export async function createRental(rentalData: {
   const dress = await getDressById(rentalData.dress_id);
   const depAmount = rentalData.deposit_amount ?? (dress ? dress.default_deposit : 1000);
   const totalPrice = Math.max(0, rentalData.rental_price + rentalData.additional_charges - rentalData.discount);
+  const initialStatus = rentalData.status || 'confirmed';
 
   const newRental: Rental = {
     id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `r-${Date.now()}`,
@@ -595,7 +563,9 @@ export async function createRental(rentalData: {
     deposit_retained_amount: 0,
     deposit_retention_reason: null,
     total_price: totalPrice,
-    status: rentalData.status || 'confirmed',
+    status: initialStatus,
+    fulfillment_type: rentalData.fulfillment_type || 'pickup',
+    delivery_address: rentalData.delivery_address || null,
     notes: rentalData.notes || null,
     created_by: null,
     updated_by: null,
@@ -616,6 +586,13 @@ export async function createRental(rentalData: {
       .single();
 
     if (error) throw new Error(error.message);
+
+    // Synchronize dress operational status if order is active/on_rent/reserved
+    if (initialStatus === 'on_rent') {
+      await updateDressOperationalStatus(rentalData.dress_id, 'on_rent', `Rental order ${data.id.slice(0, 8)} started`);
+    } else if (initialStatus === 'reserved') {
+      await updateDressOperationalStatus(rentalData.dress_id, 'reserved', `Rental order ${data.id.slice(0, 8)} reserved`);
+    }
 
     // Audit transaction entries
     await (supabase.from('financial_transactions') as any).insert({
@@ -646,6 +623,12 @@ export async function createRental(rentalData: {
   }
 
   localRentals.unshift(newRental);
+
+  if (initialStatus === 'on_rent') {
+    await updateDressOperationalStatus(rentalData.dress_id, 'on_rent', `Rental order ${newRental.id.slice(0, 8)} started`);
+  } else if (initialStatus === 'reserved') {
+    await updateDressOperationalStatus(rentalData.dress_id, 'reserved', `Rental order ${newRental.id.slice(0, 8)} reserved`);
+  }
 
   localTransactions.unshift({
     id: `t-${Date.now()}-1`,
@@ -707,12 +690,16 @@ export async function updateRentalStatus(
 
     if (error) throw new Error(error.message);
 
-    if (newStatus === 'returned' && rental.dress_id) {
-      await updateDressOperationalStatus(
-        rental.dress_id,
-        'cleaning',
-        `Rental order ${rentalId.slice(0, 8)} returned by customer`
-      );
+    if (rental.dress_id) {
+      if (newStatus === 'on_rent') {
+        await updateDressOperationalStatus(rental.dress_id, 'on_rent', `Rental order ${rentalId.slice(0, 8)} on rent`);
+      } else if (newStatus === 'reserved') {
+        await updateDressOperationalStatus(rental.dress_id, 'reserved', `Rental order ${rentalId.slice(0, 8)} reserved`);
+      } else if (newStatus === 'returned') {
+        await updateDressOperationalStatus(rental.dress_id, 'cleaning', `Rental order ${rentalId.slice(0, 8)} returned by customer`);
+      } else if (newStatus === 'completed' || newStatus === 'cancelled') {
+        await updateDressOperationalStatus(rental.dress_id, 'available', `Rental order ${rentalId.slice(0, 8)} ${newStatus}`);
+      }
     }
 
     return updated;
@@ -724,12 +711,16 @@ export async function updateRentalStatus(
     localRentals[idx].updated_at = new Date().toISOString();
   }
 
-  if (newStatus === 'returned' && rental.dress_id) {
-    await updateDressOperationalStatus(
-      rental.dress_id,
-      'cleaning',
-      `Rental order ${rentalId.slice(0, 8)} returned by customer`
-    );
+  if (rental.dress_id) {
+    if (newStatus === 'on_rent') {
+      await updateDressOperationalStatus(rental.dress_id, 'on_rent', `Rental order ${rentalId.slice(0, 8)} on rent`);
+    } else if (newStatus === 'reserved') {
+      await updateDressOperationalStatus(rental.dress_id, 'reserved', `Rental order ${rentalId.slice(0, 8)} reserved`);
+    } else if (newStatus === 'returned') {
+      await updateDressOperationalStatus(rental.dress_id, 'cleaning', `Rental order ${rentalId.slice(0, 8)} returned by customer`);
+    } else if (newStatus === 'completed' || newStatus === 'cancelled') {
+      await updateDressOperationalStatus(rental.dress_id, 'available', `Rental order ${rentalId.slice(0, 8)} ${newStatus}`);
+    }
   }
 
   persistLocalState();
@@ -860,6 +851,8 @@ export async function updateRental(
     discount?: number;
     deposit_amount?: number;
     status?: RentalOrderStatus;
+    fulfillment_type?: 'pickup' | 'delivery';
+    delivery_address?: string | null;
     notes?: string | null;
   }
 ): Promise<Rental> {
@@ -896,6 +889,19 @@ export async function updateRental(
       .single();
 
     if (error) throw new Error(error.message);
+
+    if (data.status && data.status !== existing.status && targetDressId) {
+      if (data.status === 'on_rent') {
+        await updateDressOperationalStatus(targetDressId, 'on_rent', `Rental order updated to on_rent`);
+      } else if (data.status === 'reserved') {
+        await updateDressOperationalStatus(targetDressId, 'reserved', `Rental order updated to reserved`);
+      } else if (data.status === 'returned') {
+        await updateDressOperationalStatus(targetDressId, 'cleaning', `Rental order returned`);
+      } else if (data.status === 'completed' || data.status === 'cancelled') {
+        await updateDressOperationalStatus(targetDressId, 'available', `Rental order ${data.status}`);
+      }
+    }
+
     return updated;
   }
 
@@ -909,100 +915,25 @@ export async function updateRental(
     updated_at: new Date().toISOString()
   };
 
+  if (data.status && data.status !== existing.status && targetDressId) {
+    if (data.status === 'on_rent') {
+      await updateDressOperationalStatus(targetDressId, 'on_rent', `Rental order updated to on_rent`);
+    } else if (data.status === 'reserved') {
+      await updateDressOperationalStatus(targetDressId, 'reserved', `Rental order updated to reserved`);
+    } else if (data.status === 'returned') {
+      await updateDressOperationalStatus(targetDressId, 'cleaning', `Rental order returned`);
+    } else if (data.status === 'completed' || data.status === 'cancelled') {
+      await updateDressOperationalStatus(targetDressId, 'available', `Rental order ${data.status}`);
+    }
+  }
+
   persistLocalState();
   const updatedObj = await getRentalById(rentalId);
   return updatedObj!;
 }
 
 // ----------------------------------------------------------------------------
-// EXPENSE SERVICES
-// ----------------------------------------------------------------------------
-
-export async function getExpenses(category?: string): Promise<Expense[]> {
-  if (isLiveSupabase()) {
-    const supabase = createClient();
-    let query = (supabase.from('expenses') as any).select('*').order('expense_date', { ascending: false });
-    if (category && category !== 'all') {
-      query = query.eq('category', category);
-    }
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    return data || [];
-  }
-
-  return localExpenses.filter((e) => {
-    if (category && category !== 'all' && e.category !== category) return false;
-    return true;
-  });
-}
-
-export async function createExpense(expenseData: {
-  category: string;
-  description: string;
-  amount: number;
-  expense_date: string;
-  receipt_reference?: string | null;
-  notes?: string | null;
-}): Promise<Expense> {
-  const newExp: Expense = {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `e-${Date.now()}`,
-    category: expenseData.category,
-    description: expenseData.description,
-    amount: Math.max(0, expenseData.amount),
-    expense_date: expenseData.expense_date,
-    receipt_reference: expenseData.receipt_reference || null,
-    notes: expenseData.notes || null,
-    created_by: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-
-  if (isLiveSupabase()) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { data: created, error } = await (supabase.from('expenses') as any)
-      .insert({ ...newExp, created_by: user?.id || null })
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-
-    await (supabase.from('financial_transactions') as any).insert({
-      transaction_type: 'expense',
-      category: created.category,
-      reference_type: 'expense',
-      reference_id: created.id,
-      amount: created.amount,
-      transaction_date: created.expense_date,
-      description: created.description,
-      created_by: user?.id || null
-    });
-
-    return created;
-  }
-
-  localExpenses.unshift(newExp);
-
-  localTransactions.unshift({
-    id: `t-${Date.now()}`,
-    transaction_type: 'expense',
-    category: newExp.category,
-    reference_type: 'expense',
-    reference_id: newExp.id,
-    amount: newExp.amount,
-    transaction_date: newExp.expense_date,
-    description: newExp.description,
-    created_by: 'admin-01',
-    created_at: new Date().toISOString()
-  });
-
-  persistLocalState();
-  return newExp;
-}
-
-// ----------------------------------------------------------------------------
-// FINANCIAL TRANSACTIONS & SUMMARY METRICS
+// FINANCIAL TRANSACTIONS & SUMMARY METRICS (EARNINGS, REFUNDS, ON-HOLD DEPOSITS)
 // ----------------------------------------------------------------------------
 
 export async function getFinancialTransactions(): Promise<FinancialTransaction[]> {
@@ -1018,7 +949,7 @@ export async function getFinancialTransactions(): Promise<FinancialTransaction[]
 }
 
 export async function getFinanceSummary(range: string = '30_days'): Promise<FinanceSummary> {
-  const [rList, eList] = await Promise.all([getRentals(), getExpenses()]);
+  const rList = await getRentals();
 
   const now = new Date();
   let startDateLimit: Date | null = null;
@@ -1051,57 +982,33 @@ export async function getFinanceSummary(range: string = '30_days'): Promise<Fina
     return new Date(r.rental_start_date) >= startDateLimit;
   });
 
-  // Filter expenses in range
-  const filteredExpenses = eList.filter((e) => {
-    if (!startDateLimit) return true;
-    return new Date(e.expense_date) >= startDateLimit;
-  });
-
-  // Calculate Recognized Revenues
+  // Calculate Recognized Revenue (Earnings) & Deposits
   let rental_revenue = 0;
   let additional_charges = 0;
   let retained_deposits = 0;
-  let deposits_held = 0;
+  let refunded_deposits = 0;
+  let on_hold_deposits = 0;
 
   filteredRentals.forEach((r) => {
     rental_revenue += Number(r.rental_price || 0);
     additional_charges += Number(r.additional_charges || 0);
     retained_deposits += Number(r.deposit_retained_amount || 0);
+    refunded_deposits += Number(r.deposit_returned_amount || 0);
 
     if (r.deposit_status === 'held' || r.deposit_status === 'pending') {
-      deposits_held += Number(r.deposit_amount || 0);
+      on_hold_deposits += Number(r.deposit_amount || 0);
     }
   });
 
   const recognized_revenue = rental_revenue + additional_charges + retained_deposits;
 
-  // Calculate Expenses Breakdown
-  let total_expenses = 0;
-  const expCatMap: { [cat: string]: number } = {};
-
-  filteredExpenses.forEach((e) => {
-    const amt = Number(e.amount || 0);
-    total_expenses += amt;
-    expCatMap[e.category] = (expCatMap[e.category] || 0) + amt;
-  });
-
-  const expenses_by_category = Object.keys(expCatMap).map((cat) => ({
-    category: cat,
-    amount: expCatMap[cat]
-  }));
-
-  const net_income = recognized_revenue - total_expenses;
-
   return {
     rental_revenue,
     additional_charges,
     retained_deposits,
-    other_income: 0,
     recognized_revenue,
-    total_expenses,
-    net_income,
-    deposits_held,
-    expenses_by_category,
+    refunded_deposits,
+    on_hold_deposits,
     date_range_label: label
   };
 }
@@ -1132,6 +1039,7 @@ export async function getPublicAvailability(params: {
   }
 
   const activeRentals = localRentals.filter((r) => r.status !== 'cancelled');
+  const todayStr = new Date().toISOString().split('T')[0];
 
   return localDresses
     .filter((d) => d.operational_status !== 'archived')
@@ -1142,13 +1050,22 @@ export async function getPublicAvailability(params: {
       return true;
     })
     .map((d) => {
-      let available = d.operational_status === 'available';
+      // Check operational status
+      let available = !['on_rent', 'reserved', 'cleaning', 'repair', 'unavailable', 'archived'].includes(d.operational_status);
 
-      if (available && params.startDate && params.endDate) {
-        const hasConflict = activeRentals.some(
-          (r) => r.dress_id === d.id && doDatesOverlap(params.startDate!, params.endDate!, r.rental_start_date, r.rental_end_date)
-        );
-        if (hasConflict) available = false;
+      if (available) {
+        if (params.startDate && params.endDate) {
+          const hasConflict = activeRentals.some(
+            (r) => r.dress_id === d.id && doDatesOverlap(params.startDate!, params.endDate!, r.rental_start_date, r.rental_end_date)
+          );
+          if (hasConflict) available = false;
+        } else {
+          // If no dates requested, check if currently on rent today
+          const currentlyOnRent = activeRentals.some(
+            (r) => r.dress_id === d.id && ['confirmed', 'reserved', 'on_rent'].includes(r.status) && doDatesOverlap(todayStr, todayStr, r.rental_start_date, r.rental_end_date)
+          );
+          if (currentlyOnRent) available = false;
+        }
       }
 
       return {

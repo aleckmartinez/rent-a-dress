@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Save, Edit3, User, CalendarCheck, ExternalLink, Sparkles } from 'lucide-react';
+import { ArrowLeft, Save, Edit3, CalendarCheck, ExternalLink, MapPin, Phone, User } from 'lucide-react';
 import { getCustomerById, updateCustomer, getRentals } from '@/lib/services/api';
 import { Customer, Rental } from '@/lib/types/database';
 import { StatusBadge } from '@/components/admin/StatusBadge';
@@ -18,6 +18,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [facebook, setFacebook] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -33,6 +34,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         setCustomer(cData);
         setName(cData.full_name);
         setPhone(cData.contact_number);
+        setAddress(cData.address || '');
         setFacebook(cData.facebook_url || '');
         setNotes(cData.notes || '');
       }
@@ -56,6 +58,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
       const updated = await updateCustomer(customer.id, {
         full_name: name,
         contact_number: phone,
+        address: address.trim() || null,
         facebook_url: facebook || null,
         notes: notes || null
       });
@@ -70,6 +73,9 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
 
   const formatPrice = (p: number) =>
     new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(p);
+
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   if (loading) {
     return <div className="py-12 text-center text-xs text-slate-400">Loading customer profile...</div>;
@@ -86,6 +92,10 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
     );
   }
 
+  const totalSpend = rentals
+    .filter((r) => r.status !== 'cancelled')
+    .reduce((sum, r) => sum + Number(r.total_price || 0), 0);
+
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto">
       {/* Header */}
@@ -99,7 +109,9 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
           </Link>
           <div>
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">{customer.full_name}</h1>
-            <p className="text-xs text-slate-500">{customer.contact_number}</p>
+            <p className="text-xs text-slate-500">{customer.contact_number}
+              {customer.address && <span className="ml-2 text-slate-400">• {customer.address}</span>}
+            </p>
           </div>
         </div>
 
@@ -114,7 +126,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Customer Profile Box */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 flex flex-col gap-4">
           <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-soft">
             {isEditing ? (
               <form onSubmit={handleSave} className="flex flex-col gap-4">
@@ -123,7 +135,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                 </h3>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Full Name</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Full Name *</label>
                   <input
                     type="text"
                     required
@@ -134,12 +146,23 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Contact Number</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Contact Number *</label>
                   <input
                     type="text"
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Address</label>
+                  <textarea
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    rows={2}
+                    placeholder="Street, Barangay, City, Province"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
                   />
                 </div>
@@ -185,7 +208,23 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 text-xs">
+                <div className="flex flex-col gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 font-semibold uppercase text-[10px] flex items-center gap-1">
+                      <Phone className="h-3 w-3" /> Contact Number
+                    </span>
+                    <p className="text-slate-800 font-semibold mt-0.5">{customer.contact_number}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 font-semibold uppercase text-[10px] flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> Address
+                    </span>
+                    <p className="text-slate-800 mt-0.5 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 leading-relaxed">
+                      {customer.address || <span className="text-slate-400 italic">No address on file</span>}
+                    </p>
+                  </div>
+
                   <div>
                     <span className="text-slate-400 font-semibold uppercase text-[10px] block">Facebook Profile</span>
                     {customer.facebook_url ? (
@@ -204,7 +243,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
 
                   <div className="pt-2">
                     <span className="text-slate-400 font-semibold uppercase text-[10px] block">Customer Notes</span>
-                    <p className="text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1">
+                    <p className="text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1 leading-relaxed">
                       {customer.notes || 'No customer notes recorded.'}
                     </p>
                   </div>
@@ -212,15 +251,32 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
               </div>
             )}
           </div>
+
+          {/* Stats Card */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-soft flex flex-col gap-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-100 pb-2">
+              Customer Summary
+            </h3>
+            <div className="flex flex-col gap-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total Orders</span>
+                <span className="font-bold text-slate-900">{rentals.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total Spend</span>
+                <span className="font-extrabold text-pink-600">{formatPrice(totalSpend)}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Right Column: Customer Rental History */}
+        {/* Right Column: Rental History */}
         <div className="lg:col-span-2">
           <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-soft">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <CalendarCheck className="h-4 w-4 text-pink-600" />
-                <h3 className="text-sm font-bold text-slate-900">Customer Rental History</h3>
+                <h3 className="text-sm font-bold text-slate-900">Rental History</h3>
               </div>
               <span className="text-xs font-semibold text-slate-400">{rentals.length} Orders</span>
             </div>
@@ -234,6 +290,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                     <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase">
                       <th className="pb-2">Dress</th>
                       <th className="pb-2">Dates</th>
+                      <th className="pb-2">Fulfillment</th>
                       <th className="pb-2">Total</th>
                       <th className="pb-2">Status</th>
                     </tr>
@@ -241,9 +298,22 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                   <tbody className="divide-y divide-slate-100">
                     {rentals.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50/50">
-                        <td className="py-3 font-medium text-slate-800">{r.dress?.name || 'Dress'}</td>
+                        <td className="py-3 font-medium text-slate-800">
+                          <Link href={`/admin/rentals/${r.id}`} className="hover:text-pink-600 transition-colors">
+                            {r.dress?.name || 'Dress'}
+                          </Link>
+                        </td>
                         <td className="py-3 text-slate-600">
-                          {r.rental_start_date} to {r.rental_end_date}
+                          {formatDate(r.rental_start_date)} – {formatDate(r.rental_end_date)}
+                        </td>
+                        <td className="py-3">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                            r.fulfillment_type === 'delivery'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}>
+                            {r.fulfillment_type === 'delivery' ? '🚚 Delivery' : '🏠 Pickup'}
+                          </span>
                         </td>
                         <td className="py-3 font-bold text-slate-900">{formatPrice(r.total_price)}</td>
                         <td className="py-3">

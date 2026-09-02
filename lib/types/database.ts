@@ -26,9 +26,10 @@ export type DepositStatus =
   | 'retained'
   | 'partially_retained';
 
+export type FulfillmentType = 'pickup' | 'delivery';
+
 export type FinancialTransactionType =
   | 'income'
-  | 'expense'
   | 'deposit_received'
   | 'deposit_returned'
   | 'deposit_retained';
@@ -46,7 +47,6 @@ export interface Dress {
   name: string;
   color: string;
   size: string;
-  cost: number;
   default_price: number;
   default_deposit: number;
   main_photo_path: string | null;
@@ -68,6 +68,7 @@ export interface Customer {
   id: string;
   full_name: string;
   contact_number: string;
+  address: string | null;
   facebook_url: string | null;
   notes: string | null;
   created_by: string | null;
@@ -91,6 +92,8 @@ export interface Rental {
   deposit_retention_reason: string | null;
   total_price: number;
   status: RentalOrderStatus;
+  fulfillment_type: FulfillmentType;
+  delivery_address: string | null;
   notes: string | null;
   created_by: string | null;
   updated_by: string | null;
@@ -99,19 +102,6 @@ export interface Rental {
   // Joined fields
   customer?: Customer;
   dress?: Dress;
-}
-
-export interface Expense {
-  id: string;
-  category: string;
-  description: string;
-  amount: number;
-  expense_date: string;
-  receipt_reference: string | null;
-  notes: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface FinancialTransaction {
@@ -152,12 +142,9 @@ export interface FinanceSummary {
   rental_revenue: number;
   additional_charges: number;
   retained_deposits: number;
-  other_income: number;
-  recognized_revenue: number;
-  total_expenses: number;
-  net_income: number;
-  deposits_held: number;
-  expenses_by_category: { category: string; amount: number }[];
+  recognized_revenue: number; // Total Earnings
+  refunded_deposits: number; // Deposit Refunds
+  on_hold_deposits: number;  // On-hold deposit amount
   date_range_label: string;
 }
 
@@ -169,7 +156,6 @@ export type Database = {
       dress_photos: { Row: DressPhoto; Insert: any; Update: any };
       customers: { Row: Customer; Insert: any; Update: any };
       rentals: { Row: Rental; Insert: any; Update: any };
-      expenses: { Row: Expense; Insert: any; Update: any };
       financial_transactions: { Row: FinancialTransaction; Insert: any; Update: any };
       dress_status_history: { Row: DressStatusHistory; Insert: any; Update: any };
     };

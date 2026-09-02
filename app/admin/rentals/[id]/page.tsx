@@ -10,12 +10,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Shirt,
-  User,
   Clock,
   Wallet,
-  ShieldCheck,
-  Coins
+  Coins,
+  MapPin,
+  Truck,
+  Home
 } from 'lucide-react';
 import {
   getRentalById,
@@ -49,6 +49,8 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
   const [discount, setDiscount] = useState('0');
   const [depositAmount, setDepositAmount] = useState('0');
   const [status, setStatus] = useState<RentalOrderStatus>('confirmed');
+  const [fulfillmentType, setFulfillmentType] = useState<'pickup' | 'delivery'>('pickup');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [notes, setNotes] = useState('');
 
   // Availability re-check state
@@ -94,6 +96,8 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
         setDiscount(String(rData.discount));
         setDepositAmount(String(rData.deposit_amount));
         setStatus(rData.status);
+        setFulfillmentType(rData.fulfillment_type || 'pickup');
+        setDeliveryAddress(rData.delivery_address || '');
         setNotes(rData.notes || '');
 
         setTargetDepositStatus(rData.deposit_status);
@@ -164,6 +168,8 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
         discount: disc,
         deposit_amount: depAmount,
         status,
+        fulfillment_type: fulfillmentType,
+        delivery_address: fulfillmentType === 'delivery' ? deliveryAddress.trim() || null : null,
         notes: notes.trim() || null
       });
 
@@ -446,6 +452,51 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                Fulfillment Method
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFulfillmentType('pickup')}
+                  className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-xs font-semibold transition-all ${
+                    fulfillmentType === 'pickup'
+                      ? 'border-pink-400 bg-pink-50 text-pink-700 shadow-sm'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Home className="h-3.5 w-3.5" /> Pickup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFulfillmentType('delivery')}
+                  className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-xs font-semibold transition-all ${
+                    fulfillmentType === 'delivery'
+                      ? 'border-sky-400 bg-sky-50 text-sky-700 shadow-sm'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Truck className="h-3.5 w-3.5" /> Delivery
+                </button>
+              </div>
+            </div>
+
+            {fulfillmentType === 'delivery' && (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-sky-700 mb-1 flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" /> Delivery Address
+                </label>
+                <textarea
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  rows={2}
+                  placeholder="Full delivery address..."
+                  className="w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 py-2 text-xs text-slate-800 focus:border-sky-500 focus:bg-white focus:outline-none"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">

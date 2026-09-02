@@ -1,5 +1,5 @@
 -- ============================================================================
--- DRESS RENTAL MANAGEMENT & AVAILABILITY WEB APP — DATABASE SCHEMA (WITH FINANCE)
+-- DRESS RENTAL MANAGEMENT & AVAILABILITY WEB APP — DATABASE SCHEMA
 -- ============================================================================
 -- Paste this entire SQL file into your Supabase SQL Editor.
 -- ============================================================================
@@ -40,9 +40,13 @@ CREATE TYPE deposit_status_enum AS ENUM (
   'partially_retained'
 );
 
+CREATE TYPE fulfillment_type_enum AS ENUM (
+  'pickup',
+  'delivery'
+);
+
 CREATE TYPE financial_transaction_type AS ENUM (
   'income',
-  'expense',
   'deposit_received',
   'deposit_returned',
   'deposit_retained'
@@ -57,13 +61,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. Dresses Table (With Acquisition Cost & Default Deposit)
+-- 4. Dresses Table (With Default Rental Price & Default Deposit)
 CREATE TABLE IF NOT EXISTS public.dresses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   color TEXT NOT NULL,
   size TEXT NOT NULL,
-  cost NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (cost >= 0),
   default_price NUMERIC(10, 2) NOT NULL CHECK (default_price >= 0),
   default_deposit NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (default_deposit >= 0),
   main_photo_path TEXT,
@@ -82,11 +85,12 @@ CREATE TABLE IF NOT EXISTS public.dress_photos (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 6. Customers Table (CRM)
+-- 6. Customers Table (CRM with Address)
 CREATE TABLE IF NOT EXISTS public.customers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name TEXT NOT NULL,
   contact_number TEXT NOT NULL,
+  address TEXT,
   facebook_url TEXT,
   notes TEXT,
   created_by UUID REFERENCES auth.users(id),
@@ -94,7 +98,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 7. Rentals / Orders Table (With Deposit Fields)
+-- 7. Rentals / Orders Table (With Deposit Fields & Fulfillment)
 CREATE TABLE IF NOT EXISTS public.rentals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE RESTRICT,
@@ -111,6 +115,8 @@ CREATE TABLE IF NOT EXISTS public.rentals (
   deposit_retention_reason TEXT,
   total_price NUMERIC(10, 2) NOT NULL CHECK (total_price >= 0),
   status rental_order_status NOT NULL DEFAULT 'pending',
+  fulfillment_type fulfillment_type_enum NOT NULL DEFAULT 'pickup',
+  delivery_address TEXT,
   notes TEXT,
   created_by UUID REFERENCES auth.users(id),
   updated_by UUID REFERENCES auth.users(id),
@@ -120,21 +126,7 @@ CREATE TABLE IF NOT EXISTS public.rentals (
   CONSTRAINT check_deposit_amounts CHECK (deposit_returned_amount + deposit_retained_amount <= deposit_amount)
 );
 
--- 8. Business Expenses Table
-CREATE TABLE IF NOT EXISTS public.expenses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  category TEXT NOT NULL,
-  description TEXT NOT NULL,
-  amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
-  expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  receipt_reference TEXT,
-  notes TEXT,
-  created_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 9. Normalized Financial Transactions Audit Table
+-- 8. Normalized Financial Transactions Audit Table
 CREATE TABLE IF NOT EXISTS public.financial_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   transaction_type financial_transaction_type NOT NULL,
@@ -148,7 +140,7 @@ CREATE TABLE IF NOT EXISTS public.financial_transactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 10. Dress Status History Table
+-- 9. Dress Status History Table
 CREATE TABLE IF NOT EXISTS public.dress_status_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dress_id UUID NOT NULL REFERENCES public.dresses(id) ON DELETE CASCADE,
@@ -181,8 +173,6 @@ CREATE INDEX IF NOT EXISTS idx_rentals_dates ON public.rentals(rental_start_date
 CREATE INDEX IF NOT EXISTS idx_rentals_status ON public.rentals(status);
 CREATE INDEX IF NOT EXISTS idx_rentals_deposit_status ON public.rentals(deposit_status);
 CREATE INDEX IF NOT EXISTS idx_customers_contact_number ON public.customers(contact_number);
-CREATE INDEX IF NOT EXISTS idx_expenses_date ON public.expenses(expense_date);
-CREATE INDEX IF NOT EXISTS idx_expenses_category ON public.expenses(category);
 CREATE INDEX IF NOT EXISTS idx_fin_tx_date ON public.financial_transactions(transaction_date);
 
 -- ============================================================================
@@ -225,11 +215,9 @@ CREATE TRIGGER update_customers_modtime BEFORE UPDATE ON public.customers FOR EA
 DROP TRIGGER IF EXISTS update_rentals_modtime ON public.rentals;
 CREATE TRIGGER update_rentals_modtime BEFORE UPDATE ON public.rentals FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-DROP TRIGGER IF EXISTS update_expenses_modtime ON public.expenses;
-CREATE TRIGGER update_expenses_modtime BEFORE UPDATE ON public.expenses FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
 -- ============================================================================
--- SECURE PUBLIC AVAILABILITY RPC FUNCTION (Zero Customer PII / Finance Exposure)
+-- SECURE PUBLIC AVAILABILITY RPC FUNCTION
+-- Checks operational status AND active rentals to prevent dresses on rent from showing available
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.get_public_dress_availability(
@@ -260,7 +248,9 @@ BEGIN
     d.main_photo_path,
     d.operational_status,
     CASE
-      WHEN d.operational_status != 'available' THEN FALSE
+      -- Explicitly unavailable status
+      WHEN d.operational_status IN ('on_rent', 'reserved', 'cleaning', 'repair', 'unavailable', 'archived') THEN FALSE
+      -- If specific date range supplied
       WHEN p_start_date IS NOT NULL AND p_end_date IS NOT NULL THEN
         NOT EXISTS (
           SELECT 1
@@ -269,7 +259,15 @@ BEGIN
             AND r.status NOT IN ('cancelled')
             AND daterange(r.rental_start_date, r.rental_end_date, '[]') && daterange(p_start_date, p_end_date, '[]')
         )
-      ELSE TRUE
+      -- If no dates supplied, check if dress currently has an active rental covering TODAY
+      ELSE
+        NOT EXISTS (
+          SELECT 1
+          FROM public.rentals r
+          WHERE r.dress_id = d.id
+            AND r.status IN ('confirmed', 'reserved', 'on_rent')
+            AND CURRENT_DATE BETWEEN r.rental_start_date AND r.rental_end_date
+        )
     END AS is_available
   FROM public.dresses d
   WHERE d.operational_status != 'archived'
@@ -291,7 +289,6 @@ ALTER TABLE public.dresses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dress_photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rentals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.financial_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dress_status_history ENABLE ROW LEVEL SECURITY;
 
@@ -302,7 +299,6 @@ CREATE POLICY "Public view dress photos" ON public.dress_photos FOR SELECT USING
 CREATE POLICY "Admins dress photos management" ON public.dress_photos FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Admins customers management" ON public.customers FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Admins rentals management" ON public.rentals FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Admins expenses management" ON public.expenses FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Admins financial transactions management" ON public.financial_transactions FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Admins status history management" ON public.dress_status_history FOR ALL USING (auth.role() = 'authenticated');
 

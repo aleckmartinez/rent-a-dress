@@ -12,8 +12,7 @@ import {
   Clock,
   ArrowRight,
   TrendingUp,
-  Receipt,
-  Wallet,
+  RotateCcw,
   Coins
 } from 'lucide-react';
 import { getDresses, getRentals, getCustomers, getFinanceSummary } from '@/lib/services/api';
@@ -155,10 +154,10 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Financial Summary Cards Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Revenue This Month</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gross Earnings (This Month)</span>
             <TrendingUp className="h-4 w-4 text-emerald-600" />
           </div>
           <p className="mt-2 text-xl font-extrabold text-emerald-600">
@@ -168,31 +167,21 @@ export default function AdminDashboardPage() {
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Expenses This Month</span>
-            <Receipt className="h-4 w-4 text-rose-600" />
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deposit Refunds</span>
+            <RotateCcw className="h-4 w-4 text-sky-600" />
           </div>
-          <p className="mt-2 text-xl font-extrabold text-rose-600">
-            {loading ? '...' : formatPrice(finSummary?.total_expenses || 0)}
+          <p className="mt-2 text-xl font-extrabold text-sky-700">
+            {loading ? '...' : formatPrice(finSummary?.refunded_deposits || 0)}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Net Income This Month</span>
-            <Wallet className="h-4 w-4 text-pink-600" />
-          </div>
-          <p className="mt-2 text-xl font-extrabold text-pink-600">
-            {loading ? '...' : formatPrice(finSummary?.net_income || 0)}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deposits Held</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">On-Hold Deposits</span>
             <Coins className="h-4 w-4 text-amber-600" />
           </div>
           <p className="mt-2 text-xl font-extrabold text-amber-700">
-            {loading ? '...' : formatPrice(finSummary?.deposits_held || 0)}
+            {loading ? '...' : formatPrice(finSummary?.on_hold_deposits || 0)}
           </p>
         </div>
       </div>
