@@ -75,10 +75,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. Dresses Table
+-- 4. Dresses Table (With Dress Type, Color, Size, Default Rental Price & Default Deposit)
 CREATE TABLE IF NOT EXISTS public.dresses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
+  dress_type TEXT NOT NULL DEFAULT 'Long Dress',
   color TEXT NOT NULL,
   size TEXT NOT NULL,
   default_price NUMERIC(10, 2) NOT NULL CHECK (default_price >= 0),
@@ -90,7 +91,8 @@ CREATE TABLE IF NOT EXISTS public.dresses (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- If cost column exists from previous version, drop it safely
+-- Safely add dress_type column if not exists
+ALTER TABLE public.dresses ADD COLUMN IF NOT EXISTS dress_type TEXT NOT NULL DEFAULT 'Long Dress';
 ALTER TABLE public.dresses DROP COLUMN IF EXISTS cost;
 
 -- 5. Dress Photos Table
@@ -192,6 +194,7 @@ ALTER TABLE public.rentals
   WHERE (status NOT IN ('cancelled'));
 
 CREATE INDEX IF NOT EXISTS idx_dresses_operational_status ON public.dresses(operational_status);
+CREATE INDEX IF NOT EXISTS idx_dresses_type ON public.dresses(dress_type);
 CREATE INDEX IF NOT EXISTS idx_rentals_dress_id ON public.rentals(dress_id);
 CREATE INDEX IF NOT EXISTS idx_rentals_customer_id ON public.rentals(customer_id);
 CREATE INDEX IF NOT EXISTS idx_rentals_dates ON public.rentals(rental_start_date, rental_end_date);
@@ -243,18 +246,21 @@ CREATE TRIGGER update_rentals_modtime BEFORE UPDATE ON public.rentals FOR EACH R
 -- ============================================================================
 -- SECURE PUBLIC AVAILABILITY RPC FUNCTION
 -- Checks operational status AND active rentals to prevent dresses on rent from showing available
+-- Supports filtering by Dress Type (Long Dress, Short Dress, etc.), Color, Size, Search, and Date Range
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.get_public_dress_availability(
   p_start_date DATE DEFAULT NULL,
   p_end_date DATE DEFAULT NULL,
   p_search TEXT DEFAULT NULL,
+  p_type TEXT DEFAULT NULL,
   p_color TEXT DEFAULT NULL,
   p_size TEXT DEFAULT NULL
 )
 RETURNS TABLE (
   id UUID,
   name TEXT,
+  dress_type TEXT,
   color TEXT,
   size TEXT,
   default_price NUMERIC,
@@ -267,6 +273,7 @@ BEGIN
   SELECT
     d.id,
     d.name,
+    d.dress_type,
     d.color,
     d.size,
     d.default_price,
@@ -297,13 +304,14 @@ BEGIN
   FROM public.dresses d
   WHERE d.operational_status != 'archived'
     AND (p_search IS NULL OR d.name ILIKE '%' || p_search || '%')
+    AND (p_type IS NULL OR d.dress_type ILIKE p_type)
     AND (p_color IS NULL OR d.color ILIKE p_color)
     AND (p_size IS NULL OR d.size ILIKE p_size)
   ORDER BY d.created_at DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-GRANT EXECUTE ON FUNCTION public.get_public_dress_availability(DATE, DATE, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_public_dress_availability(DATE, DATE, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 
 -- ============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES

@@ -84,6 +84,7 @@ export function doDatesOverlap(
 
 export async function getDresses(filters?: {
   status?: string;
+  type?: string;
   color?: string;
   size?: string;
   search?: string;
@@ -98,6 +99,9 @@ export async function getDresses(filters?: {
       .neq('operational_status', 'archived')
       .order('created_at', { ascending: false });
 
+    if (filters?.type && filters.type !== 'all') {
+      query = query.ilike('dress_type', `%${filters.type}%`);
+    }
     if (filters?.color && filters.color !== 'all') {
       query = query.ilike('color', `%${filters.color}%`);
     }
@@ -114,6 +118,7 @@ export async function getDresses(filters?: {
   } else {
     list = localDresses.filter((d) => {
       if (d.operational_status === 'archived') return false;
+      if (filters?.type && filters.type !== 'all' && !d.dress_type.toLowerCase().includes(filters.type.toLowerCase())) return false;
       if (filters?.color && filters.color !== 'all' && !d.color.toLowerCase().includes(filters.color.toLowerCase())) return false;
       if (filters?.size && filters.size !== 'all' && !d.size.toLowerCase().includes(filters.size.toLowerCase())) return false;
       if (filters?.search && !d.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
@@ -162,6 +167,7 @@ export async function getDressById(id: string): Promise<Dress | null> {
 
 export async function createDress(dressData: {
   name: string;
+  dress_type?: string;
   color: string;
   size: string;
   default_price: number;
@@ -172,6 +178,7 @@ export async function createDress(dressData: {
   const newDress: Dress = {
     id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `d-${Date.now()}`,
     name: dressData.name,
+    dress_type: dressData.dress_type || 'Long Dress',
     color: dressData.color,
     size: dressData.size,
     default_price: dressData.default_price,
@@ -1040,6 +1047,7 @@ export async function getPublicAvailability(params: {
   startDate?: string;
   endDate?: string;
   search?: string;
+  type?: string;
   color?: string;
   size?: string;
 }): Promise<PublicDressAvailability[]> {
@@ -1049,6 +1057,7 @@ export async function getPublicAvailability(params: {
       p_start_date: params.startDate || null,
       p_end_date: params.endDate || null,
       p_search: params.search && params.search.trim() ? params.search.trim() : null,
+      p_type: params.type && params.type !== 'all' ? params.type : null,
       p_color: params.color && params.color !== 'all' ? params.color : null,
       p_size: params.size && params.size !== 'all' ? params.size : null
     });
@@ -1064,6 +1073,7 @@ export async function getPublicAvailability(params: {
     .filter((d) => d.operational_status !== 'archived')
     .filter((d) => {
       if (params.search && !d.name.toLowerCase().includes(params.search.toLowerCase())) return false;
+      if (params.type && params.type !== 'all' && !d.dress_type.toLowerCase().includes(params.type.toLowerCase())) return false;
       if (params.color && params.color !== 'all' && !d.color.toLowerCase().includes(params.color.toLowerCase())) return false;
       if (params.size && params.size !== 'all' && !d.size.toLowerCase().includes(params.size.toLowerCase())) return false;
       return true;
@@ -1090,6 +1100,7 @@ export async function getPublicAvailability(params: {
       return {
         id: d.id,
         name: d.name,
+        dress_type: d.dress_type || 'Long Dress',
         color: d.color,
         size: d.size,
         default_price: d.default_price,

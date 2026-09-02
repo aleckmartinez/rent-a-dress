@@ -10,6 +10,7 @@ import { PhotoUploader } from '@/components/admin/PhotoUploader';
 export default function NewDressPage() {
   const router = useRouter();
   const [name, setName] = useState('');
+  const [dressType, setDressType] = useState('Long Dress');
   const [color, setColor] = useState('');
   const [size, setSize] = useState('Medium (M)');
   const [price, setPrice] = useState('');
@@ -51,6 +52,7 @@ export default function NewDressPage() {
     try {
       await createDress({
         name: name.trim(),
+        dress_type: dressType,
         color: color.trim(),
         size,
         default_price: Number(price),
@@ -116,6 +118,26 @@ export default function NewDressPage() {
               } px-4 py-2.5 text-sm text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none transition-colors`}
             />
             {errors.name && <p className="mt-1 text-xs text-rose-600 font-medium">{errors.name}</p>}
+          </div>
+
+          {/* Dress Type */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              Dress Type / Category *
+            </label>
+            <select
+              value={dressType}
+              onChange={(e) => setDressType(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none transition-colors"
+            >
+              <option value="Long Dress">Long Dress</option>
+              <option value="Short Dress">Short Dress</option>
+              <option value="Evening Gown">Evening Gown</option>
+              <option value="Cocktail Dress">Cocktail Dress</option>
+              <option value="Ball Gown">Ball Gown</option>
+              <option value="Midi Dress">Midi Dress</option>
+              <option value="Prom Dress">Prom Dress</option>
+            </select>
           </div>
 
           {/* Color */}

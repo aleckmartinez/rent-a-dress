@@ -10,6 +10,7 @@ export const INITIAL_DRESSES: Dress[] = [
   {
     id: 'd1010101-0000-0000-0000-000000000001',
     name: 'Blush Rose Silk Gown',
+    dress_type: 'Long Dress',
     color: 'Blush Pink',
     size: 'Medium (M)',
     default_price: 2800,
@@ -23,6 +24,7 @@ export const INITIAL_DRESSES: Dress[] = [
   {
     id: 'd1010101-0000-0000-0000-000000000002',
     name: 'Midnight Sapphire Evening Dress',
+    dress_type: 'Evening Gown',
     color: 'Navy Blue',
     size: 'Small (S)',
     default_price: 3200,
@@ -36,12 +38,13 @@ export const INITIAL_DRESSES: Dress[] = [
   {
     id: 'd1010101-0000-0000-0000-000000000003',
     name: 'Emerald Gala Satin Gown',
+    dress_type: 'Long Dress',
     color: 'Emerald Green',
     size: 'Large (L)',
     default_price: 3500,
     default_deposit: 1200,
     main_photo_path: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?q=80&w=800&auto=format&fit=crop',
-    operational_status: 'cleaning',
+    operational_status: 'available',
     created_by: 'admin-01',
     created_at: '2026-08-10T14:30:00Z',
     updated_at: '2026-09-01T09:00:00Z'
@@ -49,6 +52,7 @@ export const INITIAL_DRESSES: Dress[] = [
   {
     id: 'd1010101-0000-0000-0000-000000000004',
     name: 'Champagne Sparkle Corset Dress',
+    dress_type: 'Short Dress',
     color: 'Champagne Gold',
     size: 'Small (S)',
     default_price: 4000,
@@ -62,12 +66,13 @@ export const INITIAL_DRESSES: Dress[] = [
   {
     id: 'd1010101-0000-0000-0000-000000000005',
     name: 'Lilac Floral Promenade Dress',
+    dress_type: 'Short Dress',
     color: 'Pastel Lilac',
     size: 'Medium (M)',
     default_price: 2500,
     default_deposit: 1000,
     main_photo_path: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?q=80&w=800&auto=format&fit=crop',
-    operational_status: 'preparing',
+    operational_status: 'available',
     created_by: 'admin-01',
     created_at: '2026-08-20T11:00:00Z',
     updated_at: '2026-09-02T08:00:00Z'
@@ -193,7 +198,7 @@ export const INITIAL_STATUS_HISTORY: DressStatusHistory[] = [
     id: 'h4040404-0000-0000-0000-000000000001',
     dress_id: 'd1010101-0000-0000-0000-000000000003',
     old_status: 'on_rent',
-    new_status: 'cleaning',
+    new_status: 'available',
     reason: 'Returned from gala event on Sep 1',
     changed_by: 'admin-01',
     changed_at: '2026-09-01T09:00:00Z'

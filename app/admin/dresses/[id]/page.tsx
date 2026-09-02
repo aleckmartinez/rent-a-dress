@@ -42,8 +42,9 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
   // Edit Mode state
   const [isEditing, setIsEditing] = useState(isEditQuery);
   const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState('Long Dress');
   const [editColor, setEditColor] = useState('');
-  const [editSize, setEditSize] = useState('');
+  const [editSize, setEditSize] = useState('Medium (M)');
   const [editPrice, setEditPrice] = useState('');
   const [editDeposit, setEditDeposit] = useState('');
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
@@ -65,6 +66,7 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
       if (data) {
         setDress(data);
         setEditName(data.name);
+        setEditType(data.dress_type || 'Long Dress');
         setEditColor(data.color);
         setEditSize(data.size);
         setEditPrice(String(data.default_price));
@@ -114,11 +116,13 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dress) return;
+
     setSavingEdit(true);
     try {
       const updated = await updateDress(dress.id, {
-        name: editName,
-        color: editColor,
+        name: editName.trim(),
+        dress_type: editType,
+        color: editColor.trim(),
         size: editSize,
         default_price: Number(editPrice),
         default_deposit: Number(editDeposit),
@@ -126,7 +130,7 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
       });
       setDress(updated);
       setIsEditing(false);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error saving dress details:', err);
     } finally {
       setSavingEdit(false);
@@ -248,6 +252,22 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Dress Type / Category</label>
+                    <select
+                      value={editType}
+                      onChange={(e) => setEditType(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
+                    >
+                      <option value="Long Dress">Long Dress</option>
+                      <option value="Short Dress">Short Dress</option>
+                      <option value="Evening Gown">Evening Gown</option>
+                      <option value="Cocktail Dress">Cocktail Dress</option>
+                      <option value="Ball Gown">Ball Gown</option>
+                      <option value="Midi Dress">Midi Dress</option>
+                      <option value="Prom Dress">Prom Dress</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Color</label>
                     <input
                       type="text"
@@ -257,21 +277,22 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Size</label>
-                    <select
-                      value={editSize}
-                      onChange={(e) => setEditSize(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
-                    >
-                      <option value="XS / Extra Small">XS / Extra Small</option>
-                      <option value="Small (S)">Small (S)</option>
-                      <option value="Medium (M)">Medium (M)</option>
-                      <option value="Large (L)">Large (L)</option>
-                      <option value="XL / Extra Large">XL / Extra Large</option>
-                      <option value="Free Size">Free Size</option>
-                    </select>
-                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Size</label>
+                  <select
+                    value={editSize}
+                    onChange={(e) => setEditSize(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
+                  >
+                    <option value="XS / Extra Small">XS / Extra Small</option>
+                    <option value="Small (S)">Small (S)</option>
+                    <option value="Medium (M)">Medium (M)</option>
+                    <option value="Large (L)">Large (L)</option>
+                    <option value="XL / Extra Large">XL / Extra Large</option>
+                    <option value="Free Size">Free Size</option>
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -325,8 +346,8 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
 
                 <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 text-xs text-slate-700">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Color</span>
-                    <span className="font-semibold">{dress.color}</span>
+                    <span className="text-slate-400">Dress Type</span>
+                    <span className="font-bold text-pink-700 bg-pink-50 px-2 py-0.5 rounded border border-pink-100">{dress.dress_type || 'Long Dress'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Color</span>

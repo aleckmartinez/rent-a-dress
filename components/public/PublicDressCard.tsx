@@ -38,6 +38,14 @@ export function PublicDressCard({ dress, onSelectDress }: PublicDressCardProps) 
           </div>
         )}
 
+        {/* Dress Type Pill */}
+        <div className="absolute top-3 left-3">
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/80 px-2.5 py-1 text-[10px] font-bold text-white shadow-sm backdrop-blur-md">
+            <Sparkles className="h-3 w-3 text-pink-400" />
+            {dress.dress_type || 'Long Dress'}
+          </span>
+        </div>
+
         {/* Availability Badge Overlay */}
         <div className="absolute top-3 right-3">
           {dress.is_available ? (

@@ -45,6 +45,7 @@ export interface Profile {
 export interface Dress {
   id: string;
   name: string;
+  dress_type: string;
   color: string;
   size: string;
   default_price: number;
@@ -130,6 +131,7 @@ export interface DressStatusHistory {
 export interface PublicDressAvailability {
   id: string;
   name: string;
+  dress_type: string;
   color: string;
   size: string;
   default_price: number;
@@ -165,6 +167,7 @@ export type Database = {
           p_start_date?: string;
           p_end_date?: string;
           p_search?: string;
+          p_type?: string;
           p_color?: string;
           p_size?: string;
         };
