@@ -235,9 +235,9 @@ CREATE TRIGGER update_expenses_modtime BEFORE UPDATE ON public.expenses FOR EACH
 CREATE OR REPLACE FUNCTION public.get_public_dress_availability(
   p_start_date DATE DEFAULT NULL,
   p_end_date DATE DEFAULT NULL,
-  p_search TEXT DEFAULT '',
-  p_color TEXT DEFAULT '',
-  p_size TEXT DEFAULT ''
+  p_search TEXT DEFAULT NULL,
+  p_color TEXT DEFAULT NULL,
+  p_size TEXT DEFAULT NULL
 )
 RETURNS TABLE (
   id UUID,
@@ -273,9 +273,9 @@ BEGIN
     END AS is_available
   FROM public.dresses d
   WHERE d.operational_status != 'archived'
-    AND (p_search = '' OR d.name ILIKE '%' || p_search || '%')
-    AND (p_color = '' OR d.color ILIKE p_color)
-    AND (p_size = '' OR d.size ILIKE p_size)
+    AND (p_search IS NULL OR d.name ILIKE '%' || p_search || '%')
+    AND (p_color IS NULL OR d.color ILIKE p_color)
+    AND (p_size IS NULL OR d.size ILIKE p_size)
   ORDER BY d.created_at DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

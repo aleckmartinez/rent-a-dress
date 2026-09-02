@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { Calendar, Search, Filter, Sparkles, ShieldCheck } from 'lucide-react';
+import { Calendar, Search, Filter, Sparkles } from 'lucide-react';
 import { PublicDressAvailability } from '@/lib/types/database';
 import { getPublicAvailability } from '@/lib/services/api';
 import { PublicDressCard } from '@/components/public/PublicDressCard';
@@ -55,24 +54,14 @@ export default function PublicAvailabilityPage() {
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
       {/* Public Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-100 border border-pink-200 text-pink-600 shadow-sm">
-              <Sparkles className="h-5 w-5" />
-            </span>
-            <div>
-              <h1 className="text-base font-extrabold text-slate-900 tracking-tight">Atelier Rental Catalog</h1>
-              <p className="text-[11px] text-slate-500 font-medium">Browse Collection & Date Availability</p>
-            </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-100 border border-pink-200 text-pink-600 shadow-sm">
+            <Sparkles className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-base font-extrabold text-slate-900 tracking-tight">Atelier Rental Catalog</h1>
+            <p className="text-[11px] text-slate-500 font-medium">Browse Collection & Date Availability</p>
           </div>
-
-          <Link
-            href="/login"
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <ShieldCheck className="h-4 w-4 text-pink-600" />
-            Admin Login
-          </Link>
         </div>
       </header>
 

@@ -1120,11 +1120,11 @@ export async function getPublicAvailability(params: {
   if (isLiveSupabase()) {
     const supabase = createClient();
     const { data, error } = await (supabase as any).rpc('get_public_dress_availability', {
-      p_start_date: params.startDate || undefined,
-      p_end_date: params.endDate || undefined,
-      p_search: params.search || '',
-      p_color: params.color || '',
-      p_size: params.size || ''
+      p_start_date: params.startDate || null,
+      p_end_date: params.endDate || null,
+      p_search: params.search && params.search.trim() ? params.search.trim() : null,
+      p_color: params.color && params.color !== 'all' ? params.color : null,
+      p_size: params.size && params.size !== 'all' ? params.size : null
     });
 
     if (error) throw new Error(error.message);
