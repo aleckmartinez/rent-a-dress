@@ -88,6 +88,9 @@ export async function getDresses(filters?: {
   size?: string;
   search?: string;
 }): Promise<Dress[]> {
+  const todayStr = new Date().toISOString().split('T')[0];
+  let list: Dress[] = [];
+
   if (isLiveSupabase()) {
     const supabase = createClient();
     let query = (supabase.from('dresses') as any)
@@ -95,9 +98,6 @@ export async function getDresses(filters?: {
       .neq('operational_status', 'archived')
       .order('created_at', { ascending: false });
 
-    if (filters?.status && filters.status !== 'all') {
-      query = query.eq('operational_status', filters.status as DressOperationalStatus);
-    }
     if (filters?.color && filters.color !== 'all') {
       query = query.ilike('color', `%${filters.color}%`);
     }
@@ -110,17 +110,44 @@ export async function getDresses(filters?: {
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data || [];
+    list = data || [];
+  } else {
+    list = localDresses.filter((d) => {
+      if (d.operational_status === 'archived') return false;
+      if (filters?.color && filters.color !== 'all' && !d.color.toLowerCase().includes(filters.color.toLowerCase())) return false;
+      if (filters?.size && filters.size !== 'all' && !d.size.toLowerCase().includes(filters.size.toLowerCase())) return false;
+      if (filters?.search && !d.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
+      return true;
+    });
   }
 
-  return localDresses.filter((d) => {
-    if (d.operational_status === 'archived') return false;
-    if (filters?.status && filters.status !== 'all' && d.operational_status !== filters.status) return false;
-    if (filters?.color && filters.color !== 'all' && !d.color.toLowerCase().includes(filters.color.toLowerCase())) return false;
-    if (filters?.size && filters.size !== 'all' && !d.size.toLowerCase().includes(filters.size.toLowerCase())) return false;
-    if (filters?.search && !d.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
-    return true;
+  // Cross-reference active rentals to ensure dresses on rent today reflect 'on_rent' or 'reserved' status
+  const rentals = await getRentals();
+  const updatedList = list.map((d) => {
+    if (d.operational_status === 'available') {
+      const activeRental = rentals.find(
+        (r) =>
+          r.dress_id === d.id &&
+          r.status !== 'cancelled' &&
+          r.status !== 'returned' &&
+          r.status !== 'completed' &&
+          doDatesOverlap(todayStr, todayStr, r.rental_start_date, r.rental_end_date)
+      );
+
+      if (activeRental) {
+        const effectiveStatus: DressOperationalStatus =
+          activeRental.status === 'on_rent' ? 'on_rent' : 'reserved';
+        return { ...d, operational_status: effectiveStatus };
+      }
+    }
+    return d;
   });
+
+  if (filters?.status && filters.status !== 'all') {
+    return updatedList.filter((d) => d.operational_status === filters.status);
+  }
+
+  return updatedList;
 }
 
 export async function getDressById(id: string): Promise<Dress | null> {
