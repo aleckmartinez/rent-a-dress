@@ -333,8 +333,12 @@ export default function PublicAvailabilityPage() {
                         {formatPrice(selectedDress.default_price)}
                       </span>
                     </div>
-                    <span className="text-[11px] font-semibold text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-                      Status: {selectedDress.operational_status.toUpperCase()}
+                    <span className={`text-[11px] font-extrabold px-3 py-1 rounded-full border ${
+                      selectedDress.is_available
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                    }`}>
+                      {selectedDress.is_available ? '🟢 AVAILABLE' : '🔴 UNAVAILABLE'}
                     </span>
                   </div>
                 </div>
