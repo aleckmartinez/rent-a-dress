@@ -958,6 +958,38 @@ export async function updateRental(
   return updatedObj!;
 }
 
+export async function deleteRental(rentalId: string): Promise<void> {
+  const rental = await getRentalById(rentalId);
+  if (!rental) throw new Error('Rental not found');
+
+  if (isLiveSupabase()) {
+    const supabase = createClient();
+    const { error } = await (supabase.from('rentals') as any)
+      .delete()
+      .eq('id', rentalId);
+    if (error) throw new Error(error.message);
+
+    // If the rental was active, free the dress
+    if (rental.dress_id && !['cancelled', 'completed', 'returned'].includes(rental.status)) {
+      await updateDressOperationalStatus(rental.dress_id, 'available', `Rental order ${rentalId.slice(0, 8)} deleted`);
+    }
+    return;
+  }
+
+  // Local mode: remove from list
+  const idx = localRentals.findIndex((r) => r.id === rentalId);
+  if (idx !== -1) {
+    localRentals.splice(idx, 1);
+  }
+
+  // Free the dress if it was active
+  if (rental.dress_id && !['cancelled', 'completed', 'returned'].includes(rental.status)) {
+    await updateDressOperationalStatus(rental.dress_id, 'available', `Rental order ${rentalId.slice(0, 8)} deleted`);
+  }
+
+  persistLocalState();
+}
+
 // ----------------------------------------------------------------------------
 // FINANCIAL TRANSACTIONS & SUMMARY METRICS (EARNINGS, REFUNDS, ON-HOLD DEPOSITS)
 // ----------------------------------------------------------------------------

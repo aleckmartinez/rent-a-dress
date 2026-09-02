@@ -15,7 +15,8 @@ import {
   Coins,
   MapPin,
   Truck,
-  Home
+  Home,
+  Trash2
 } from 'lucide-react';
 import {
   getRentalById,
@@ -24,7 +25,8 @@ import {
   updateRentalDeposit,
   getDresses,
   getCustomers,
-  checkDressAvailability
+  checkDressAvailability,
+  deleteRental
 } from '@/lib/services/api';
 import { Rental, Dress, Customer, RentalOrderStatus, DepositStatus } from '@/lib/types/database';
 import { StatusBadge } from '@/components/admin/StatusBadge';
@@ -76,7 +78,9 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
   // Modals
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const loadRentalData = async () => {
     setLoading(true);
@@ -234,6 +238,20 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
     }
   };
 
+  const handleDeleteOrder = async () => {
+    setDeleting(true);
+    try {
+      await deleteRental(resolvedParams.id);
+      router.push('/admin/rentals');
+    } catch (err: any) {
+      console.error('Error deleting rental:', err);
+      setErrorMsg(err.message || 'Failed to delete rental.');
+      setDeleteModalOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Open Deposit Modal with preset defaults
   const handleOpenDepositModal = (presetStatus: DepositStatus = 'returned') => {
     if (!rental) return;
@@ -362,6 +380,14 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
               Cancel Rental
             </button>
           )}
+
+          <button
+            onClick={() => setDeleteModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-red-300 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
+          </button>
         </div>
       </div>
 
@@ -757,6 +783,18 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
         confirmLabel="Cancel Order"
         variant="danger"
         isLoading={statusUpdating}
+      />
+
+      {/* Delete Order Confirmation Modal */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleDeleteOrder}
+        title="Permanently delete this order?"
+        description={`This will permanently remove Order ${formatOrderNumber(rental.id)} from the system. This action cannot be undone. If the dress was on an active rental, it will be marked as available again.`}
+        confirmLabel={deleting ? 'Deleting...' : 'Yes, Delete Permanently'}
+        variant="danger"
+        isLoading={deleting}
       />
     </div>
   );
