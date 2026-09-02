@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar,
   Search,
@@ -27,7 +27,9 @@ export default function PublicAvailabilityPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [colorFilter, setColorFilter] = useState<string>('all');
   const [sizeFilter, setSizeFilter] = useState<string>('all');
+  
   const [dresses, setDresses] = useState<PublicDressAvailability[]>([]);
+  const [allCatalogDresses, setAllCatalogDresses] = useState<PublicDressAvailability[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,25 +44,40 @@ export default function PublicAvailabilityPage() {
   }>({ checked: false, available: true });
   const [checkingModalAvailability, setCheckingModalAvailability] = useState<boolean>(false);
 
-  const DRESS_TYPES = [
-    { id: 'all', label: 'All Dress Types' },
-    { id: 'Long Dress', label: 'Long Dress' },
-    { id: 'Short Dress', label: 'Short Dress' },
-    { id: 'Evening Gown', label: 'Evening Gown' },
-    { id: 'Cocktail Dress', label: 'Cocktail Dress' },
-    { id: 'Ball Gown', label: 'Ball Gown' },
-    { id: 'Midi Dress', label: 'Midi Dress' },
-    { id: 'Prom Dress', label: 'Prom Dress' }
-  ];
+  // Load full catalog once to dynamically derive available Types and Colors from actual dress listings
+  useEffect(() => {
+    const loadFullCatalog = async () => {
+      try {
+        const fullData = await getPublicAvailability({});
+        setAllCatalogDresses(fullData);
+      } catch (err) {
+        console.error('Error fetching full catalog for dynamic filters:', err);
+      }
+    };
+    loadFullCatalog();
+  }, []);
 
-  const COLOR_OPTIONS = [
-    { id: 'all', label: 'All Colors' },
-    { id: 'Blush Pink', label: 'Blush Pink' },
-    { id: 'Navy Blue', label: 'Navy Blue' },
-    { id: 'Emerald Green', label: 'Emerald Green' },
-    { id: 'Champagne Gold', label: 'Champagne Gold' },
-    { id: 'Pastel Lilac', label: 'Pastel Lilac' }
-  ];
+  // Dynamically compute available Dress Types from dress listings in database
+  const availableTypes = useMemo(() => {
+    const typesSet = new Set<string>();
+    allCatalogDresses.forEach((d) => {
+      if (d.dress_type && d.dress_type.trim()) {
+        typesSet.add(d.dress_type.trim());
+      }
+    });
+    return [{ id: 'all', label: 'All Dress Types' }, ...Array.from(typesSet).map((t) => ({ id: t, label: t }))];
+  }, [allCatalogDresses]);
+
+  // Dynamically compute available Dress Colors from dress listings in database
+  const availableColors = useMemo(() => {
+    const colorsSet = new Set<string>();
+    allCatalogDresses.forEach((d) => {
+      if (d.color && d.color.trim()) {
+        colorsSet.add(d.color.trim());
+      }
+    });
+    return [{ id: 'all', label: 'All Colors' }, ...Array.from(colorsSet).map((c) => ({ id: c, label: c }))];
+  }, [allCatalogDresses]);
 
   const fetchAvailability = async () => {
     setLoading(true);
@@ -212,17 +229,17 @@ export default function PublicAvailabilityPage() {
         </div>
       </section>
 
-      {/* Main Catalog & Interactive Filtering Grid */}
+      {/* Main Catalog & Interactive Dynamic Filtering Grid */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
-        {/* 1. Dress Types Filter Section (Text-only, no icons) */}
+        {/* 1. Dynamic Dress Types Filter (Text-only, derived directly from available dress listings) */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2.5">
             <Tag className="h-4 w-4 text-pink-600" />
             <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Dress Types</h2>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {DRESS_TYPES.map((t) => {
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none flex-wrap">
+            {availableTypes.map((t) => {
               const active = typeFilter === t.id;
               return (
                 <button
@@ -241,7 +258,7 @@ export default function PublicAvailabilityPage() {
           </div>
         </div>
 
-        {/* 2. Available Colors Filter Section (Positioned directly below Dress Types) */}
+        {/* 2. Dynamic Available Colors Filter (Positioned directly below Dress Types, derived from listings) */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2.5">
             <Palette className="h-4 w-4 text-pink-600" />
@@ -249,7 +266,7 @@ export default function PublicAvailabilityPage() {
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none flex-wrap">
-            {COLOR_OPTIONS.map((c) => {
+            {availableColors.map((c) => {
               const active = colorFilter === c.id;
               return (
                 <button
