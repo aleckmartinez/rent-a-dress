@@ -333,6 +333,16 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
 
         {/* Quick Lifecycle Actions */}
         <div className="flex items-center gap-2">
+          {rental.status !== 'completed' && (
+            <button
+              onClick={() => handleStatusQuickChange('completed')}
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-colors"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Mark Completed
+            </button>
+          )}
+
           {rental.status !== 'returned' && rental.status !== 'completed' && rental.status !== 'cancelled' && (
             <button
               onClick={() => handleStatusQuickChange('returned')}

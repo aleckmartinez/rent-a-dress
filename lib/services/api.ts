@@ -722,9 +722,7 @@ export async function updateRentalStatus(
         await updateDressOperationalStatus(rental.dress_id, 'on_rent', `Rental order ${rentalId.slice(0, 8)} on rent`);
       } else if (newStatus === 'reserved') {
         await updateDressOperationalStatus(rental.dress_id, 'reserved', `Rental order ${rentalId.slice(0, 8)} reserved`);
-      } else if (newStatus === 'returned') {
-        await updateDressOperationalStatus(rental.dress_id, 'cleaning', `Rental order ${rentalId.slice(0, 8)} returned by customer`);
-      } else if (newStatus === 'completed' || newStatus === 'cancelled') {
+      } else if (newStatus === 'returned' || newStatus === 'completed' || newStatus === 'cancelled') {
         await updateDressOperationalStatus(rental.dress_id, 'available', `Rental order ${rentalId.slice(0, 8)} ${newStatus}`);
       }
     }
@@ -743,9 +741,7 @@ export async function updateRentalStatus(
       await updateDressOperationalStatus(rental.dress_id, 'on_rent', `Rental order ${rentalId.slice(0, 8)} on rent`);
     } else if (newStatus === 'reserved') {
       await updateDressOperationalStatus(rental.dress_id, 'reserved', `Rental order ${rentalId.slice(0, 8)} reserved`);
-    } else if (newStatus === 'returned') {
-      await updateDressOperationalStatus(rental.dress_id, 'cleaning', `Rental order ${rentalId.slice(0, 8)} returned by customer`);
-    } else if (newStatus === 'completed' || newStatus === 'cancelled') {
+    } else if (newStatus === 'returned' || newStatus === 'completed' || newStatus === 'cancelled') {
       await updateDressOperationalStatus(rental.dress_id, 'available', `Rental order ${rentalId.slice(0, 8)} ${newStatus}`);
     }
   }
@@ -917,14 +913,12 @@ export async function updateRental(
 
     if (error) throw new Error(error.message);
 
-    if (data.status && data.status !== existing.status && targetDressId) {
+    if (data.status && targetDressId) {
       if (data.status === 'on_rent') {
         await updateDressOperationalStatus(targetDressId, 'on_rent', `Rental order updated to on_rent`);
       } else if (data.status === 'reserved') {
         await updateDressOperationalStatus(targetDressId, 'reserved', `Rental order updated to reserved`);
-      } else if (data.status === 'returned') {
-        await updateDressOperationalStatus(targetDressId, 'cleaning', `Rental order returned`);
-      } else if (data.status === 'completed' || data.status === 'cancelled') {
+      } else if (data.status === 'returned' || data.status === 'completed' || data.status === 'cancelled') {
         await updateDressOperationalStatus(targetDressId, 'available', `Rental order ${data.status}`);
       }
     }
@@ -942,14 +936,12 @@ export async function updateRental(
     updated_at: new Date().toISOString()
   };
 
-  if (data.status && data.status !== existing.status && targetDressId) {
+  if (data.status && targetDressId) {
     if (data.status === 'on_rent') {
       await updateDressOperationalStatus(targetDressId, 'on_rent', `Rental order updated to on_rent`);
     } else if (data.status === 'reserved') {
       await updateDressOperationalStatus(targetDressId, 'reserved', `Rental order updated to reserved`);
-    } else if (data.status === 'returned') {
-      await updateDressOperationalStatus(targetDressId, 'cleaning', `Rental order returned`);
-    } else if (data.status === 'completed' || data.status === 'cancelled') {
+    } else if (data.status === 'returned' || data.status === 'completed' || data.status === 'cancelled') {
       await updateDressOperationalStatus(targetDressId, 'available', `Rental order ${data.status}`);
     }
   }
