@@ -1,56 +1,70 @@
 -- ============================================================================
 -- DRESS RENTAL MANAGEMENT & AVAILABILITY WEB APP — DATABASE SCHEMA
--- ============================================================================
--- Paste this entire SQL file into your Supabase SQL Editor.
+-- Safe & Idempotent SQL script (can be run multiple times safely)
 -- ============================================================================
 
 -- 1. Enable Required Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "btree_gist";
 
--- 2. Custom Enum Types
-CREATE TYPE dress_operational_status AS ENUM (
-  'available',
-  'reserved',
-  'on_rent',
-  'cleaning',
-  'inspection',
-  'preparing',
-  'repair',
-  'unavailable',
-  'archived'
-);
+-- 2. Custom Enum Types (Wrapped in duplicate_object exception handlers)
+DO $$ BEGIN
+  CREATE TYPE dress_operational_status AS ENUM (
+    'available',
+    'reserved',
+    'on_rent',
+    'cleaning',
+    'inspection',
+    'preparing',
+    'repair',
+    'unavailable',
+    'archived'
+  );
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
 
-CREATE TYPE rental_order_status AS ENUM (
-  'pending',
-  'confirmed',
-  'reserved',
-  'on_rent',
-  'returned',
-  'completed',
-  'cancelled'
-);
+DO $$ BEGIN
+  CREATE TYPE rental_order_status AS ENUM (
+    'pending',
+    'confirmed',
+    'reserved',
+    'on_rent',
+    'returned',
+    'completed',
+    'cancelled'
+  );
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
 
-CREATE TYPE deposit_status_enum AS ENUM (
-  'pending',
-  'held',
-  'eligible_for_return',
-  'returned',
-  'retained',
-  'partially_retained'
-);
+DO $$ BEGIN
+  CREATE TYPE deposit_status_enum AS ENUM (
+    'pending',
+    'held',
+    'eligible_for_return',
+    'returned',
+    'retained',
+    'partially_retained'
+  );
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
 
-CREATE TYPE fulfillment_type_enum AS ENUM (
-  'pickup',
-  'delivery'
-);
+DO $$ BEGIN
+  CREATE TYPE fulfillment_type_enum AS ENUM (
+    'pickup',
+    'delivery'
+  );
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
 
-CREATE TYPE financial_transaction_type AS ENUM (
-  'income',
-  'deposit_received',
-  'deposit_returned',
-  'deposit_retained'
-);
+DO $$ BEGIN
+  CREATE TYPE financial_transaction_type AS ENUM (
+    'income',
+    'deposit_received',
+    'deposit_returned',
+    'deposit_retained'
+  );
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
 
 -- 3. User Profiles Table (Linked to auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -61,7 +75,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. Dresses Table (With Default Rental Price & Default Deposit)
+-- 4. Dresses Table
 CREATE TABLE IF NOT EXISTS public.dresses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -75,6 +89,9 @@ CREATE TABLE IF NOT EXISTS public.dresses (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- If cost column exists from previous version, drop it safely
+ALTER TABLE public.dresses DROP COLUMN IF EXISTS cost;
 
 -- 5. Dress Photos Table
 CREATE TABLE IF NOT EXISTS public.dress_photos (
@@ -97,6 +114,8 @@ CREATE TABLE IF NOT EXISTS public.customers (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS address TEXT;
 
 -- 7. Rentals / Orders Table (With Deposit Fields & Fulfillment)
 CREATE TABLE IF NOT EXISTS public.rentals (
@@ -125,6 +144,12 @@ CREATE TABLE IF NOT EXISTS public.rentals (
   CONSTRAINT check_rental_dates CHECK (rental_end_date >= rental_start_date),
   CONSTRAINT check_deposit_amounts CHECK (deposit_returned_amount + deposit_retained_amount <= deposit_amount)
 );
+
+ALTER TABLE public.rentals ADD COLUMN IF NOT EXISTS fulfillment_type fulfillment_type_enum NOT NULL DEFAULT 'pickup';
+ALTER TABLE public.rentals ADD COLUMN IF NOT EXISTS delivery_address TEXT;
+
+-- Safely drop old expenses table if exists
+DROP TABLE IF EXISTS public.expenses CASCADE;
 
 -- 8. Normalized Financial Transactions Audit Table
 CREATE TABLE IF NOT EXISTS public.financial_transactions (
@@ -292,22 +317,59 @@ ALTER TABLE public.rentals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.financial_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dress_status_history ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admins profiles management" ON public.profiles FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Public can view dress metadata" ON public.dresses FOR SELECT USING (operational_status != 'archived');
-CREATE POLICY "Admins dresses management" ON public.dresses FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Public view dress photos" ON public.dress_photos FOR SELECT USING (true);
-CREATE POLICY "Admins dress photos management" ON public.dress_photos FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Admins customers management" ON public.customers FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Admins rentals management" ON public.rentals FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Admins financial transactions management" ON public.financial_transactions FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Admins status history management" ON public.dress_status_history FOR ALL USING (auth.role() = 'authenticated');
+DO $$ BEGIN
+  CREATE POLICY "Admins profiles management" ON public.profiles FOR ALL USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Public can view dress metadata" ON public.dresses FOR SELECT USING (operational_status != 'archived');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Admins dresses management" ON public.dresses FOR ALL USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Public view dress photos" ON public.dress_photos FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Admins dress photos management" ON public.dress_photos FOR ALL USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Admins customers management" ON public.customers FOR ALL USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Admins rentals management" ON public.rentals FOR ALL USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Admins financial transactions management" ON public.financial_transactions FOR ALL USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Admins status history management" ON public.dress_status_history FOR ALL USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- Storage Bucket Policies
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('dress-images', 'dress-images', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
-CREATE POLICY "Public read access to dress images" ON storage.objects FOR SELECT USING (bucket_id = 'dress-images');
-CREATE POLICY "Authenticated admin upload dress images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
-CREATE POLICY "Authenticated admin update dress images" ON storage.objects FOR UPDATE USING (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
-CREATE POLICY "Authenticated admin delete dress images" ON storage.objects FOR DELETE USING (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
+DO $$ BEGIN
+  CREATE POLICY "Public read access to dress images" ON storage.objects FOR SELECT USING (bucket_id = 'dress-images');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Authenticated admin upload dress images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Authenticated admin update dress images" ON storage.objects FOR UPDATE USING (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Authenticated admin delete dress images" ON storage.objects FOR DELETE USING (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
