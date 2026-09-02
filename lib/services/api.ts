@@ -4,45 +4,56 @@ import {
   Customer,
   Rental,
   DressStatusHistory,
+  Expense,
+  FinancialTransaction,
   PublicDressAvailability,
   DressOperationalStatus,
-  RentalOrderStatus
+  RentalOrderStatus,
+  DepositStatus,
+  FinanceSummary
 } from '@/lib/types/database';
 import {
   INITIAL_DRESSES,
   INITIAL_CUSTOMERS,
   INITIAL_RENTALS,
+  INITIAL_EXPENSES,
+  INITIAL_TRANSACTIONS,
   INITIAL_STATUS_HISTORY
 } from '@/lib/supabase/store';
 
-// Check if running against live Supabase or mock fallback
 const isLiveSupabase = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   return Boolean(url && !url.includes('placeholder') && url.startsWith('http'));
 };
 
-// Memory store for local browser persistence when live Supabase is not connected
 let localDresses: Dress[] = [...INITIAL_DRESSES];
 let localCustomers: Customer[] = [...INITIAL_CUSTOMERS];
 let localRentals: Rental[] = [...INITIAL_RENTALS];
+let localExpenses: Expense[] = [...INITIAL_EXPENSES];
+let localTransactions: FinancialTransaction[] = [...INITIAL_TRANSACTIONS];
 let localHistory: DressStatusHistory[] = [...INITIAL_STATUS_HISTORY];
 
-// Initialize from localStorage if in browser environment
 if (typeof window !== 'undefined') {
   try {
-    const savedDresses = localStorage.getItem('rad_dresses');
-    if (savedDresses) localDresses = JSON.parse(savedDresses);
-    
-    const savedCustomers = localStorage.getItem('rad_customers');
-    if (savedCustomers) localCustomers = JSON.parse(savedCustomers);
-    
-    const savedRentals = localStorage.getItem('rad_rentals');
-    if (savedRentals) localRentals = JSON.parse(savedRentals);
-    
-    const savedHistory = localStorage.getItem('rad_history');
-    if (savedHistory) localHistory = JSON.parse(savedHistory);
+    const savedD = localStorage.getItem('rad_dresses');
+    if (savedD) localDresses = JSON.parse(savedD);
+
+    const savedC = localStorage.getItem('rad_customers');
+    if (savedC) localCustomers = JSON.parse(savedC);
+
+    const savedR = localStorage.getItem('rad_rentals');
+    if (savedR) localRentals = JSON.parse(savedR);
+
+    const savedE = localStorage.getItem('rad_expenses');
+    if (savedE) localExpenses = JSON.parse(savedE);
+
+    const savedT = localStorage.getItem('rad_transactions');
+    if (savedT) localTransactions = JSON.parse(savedT);
+
+    const savedH = localStorage.getItem('rad_history');
+    if (savedH) localHistory = JSON.parse(savedH);
   } catch (e) {
-    console.error('Error loading local storage state:', e);
+    console.error('Error loading local storage:', e);
   }
 }
 
@@ -52,14 +63,15 @@ function persistLocalState() {
       localStorage.setItem('rad_dresses', JSON.stringify(localDresses));
       localStorage.setItem('rad_customers', JSON.stringify(localCustomers));
       localStorage.setItem('rad_rentals', JSON.stringify(localRentals));
+      localStorage.setItem('rad_expenses', JSON.stringify(localExpenses));
+      localStorage.setItem('rad_transactions', JSON.stringify(localTransactions));
       localStorage.setItem('rad_history', JSON.stringify(localHistory));
     } catch (e) {
-      console.error('Error saving local storage state:', e);
+      console.error('Error saving local storage:', e);
     }
   }
 }
 
-// Helper: Check if two date ranges overlap [start1, end1] and [start2, end2]
 export function doDatesOverlap(
   start1Str: string,
   end1Str: string,
@@ -70,7 +82,6 @@ export function doDatesOverlap(
   const end1 = new Date(end1Str);
   const start2 = new Date(start2Str);
   const end2 = new Date(end2Str);
-
   return start1 <= end2 && end1 >= start2;
 }
 
@@ -86,8 +97,11 @@ export async function getDresses(filters?: {
 }): Promise<Dress[]> {
   if (isLiveSupabase()) {
     const supabase = createClient();
-    let query = supabase.from('dresses').select('*').ne('operational_status', 'archived').order('created_at', { ascending: false });
-    
+    let query = (supabase.from('dresses') as any)
+      .select('*')
+      .neq('operational_status', 'archived')
+      .order('created_at', { ascending: false });
+
     if (filters?.status && filters.status !== 'all') {
       query = query.eq('operational_status', filters.status as DressOperationalStatus);
     }
@@ -106,8 +120,7 @@ export async function getDresses(filters?: {
     return data || [];
   }
 
-  // Fallback memory query
-  return localDresses.filter(d => {
+  return localDresses.filter((d) => {
     if (d.operational_status === 'archived') return false;
     if (filters?.status && filters.status !== 'all' && d.operational_status !== filters.status) return false;
     if (filters?.color && filters.color !== 'all' && !d.color.toLowerCase().includes(filters.color.toLowerCase())) return false;
@@ -120,18 +133,20 @@ export async function getDresses(filters?: {
 export async function getDressById(id: string): Promise<Dress | null> {
   if (isLiveSupabase()) {
     const supabase = createClient();
-    const { data, error } = await supabase.from('dresses').select('*').eq('id', id).single();
+    const { data, error } = await (supabase.from('dresses') as any).select('*').eq('id', id).single();
     if (error) return null;
     return data;
   }
-  return localDresses.find(d => d.id === id) || null;
+  return localDresses.find((d) => d.id === id) || null;
 }
 
 export async function createDress(dressData: {
   name: string;
   color: string;
   size: string;
+  cost?: number;
   default_price: number;
+  default_deposit?: number;
   main_photo_path?: string | null;
   operational_status?: DressOperationalStatus;
 }): Promise<Dress> {
@@ -140,7 +155,9 @@ export async function createDress(dressData: {
     name: dressData.name,
     color: dressData.color,
     size: dressData.size,
+    cost: dressData.cost || 0,
     default_price: dressData.default_price,
+    default_deposit: dressData.default_deposit || Math.round(dressData.default_price * 0.4),
     main_photo_path: dressData.main_photo_path || null,
     operational_status: dressData.operational_status || 'available',
     created_by: null,
@@ -151,8 +168,7 @@ export async function createDress(dressData: {
   if (isLiveSupabase()) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-      .from('dresses')
+    const { data, error } = await (supabase.from('dresses') as any)
       .insert({ ...newDress, created_by: user?.id || null })
       .select()
       .single();
@@ -161,6 +177,37 @@ export async function createDress(dressData: {
   }
 
   localDresses.unshift(newDress);
+
+  // Record acquisition cost expense if cost > 0
+  if (newDress.cost > 0) {
+    const exp: Expense = {
+      id: `e-${Date.now()}`,
+      category: 'Dress Purchase',
+      description: `Acquisition cost for dress: ${newDress.name}`,
+      amount: newDress.cost,
+      expense_date: new Date().toISOString().split('T')[0],
+      receipt_reference: null,
+      notes: 'Initial inventory acquisition cost',
+      created_by: 'admin-01',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    localExpenses.unshift(exp);
+
+    localTransactions.unshift({
+      id: `t-${Date.now()}`,
+      transaction_type: 'expense',
+      category: 'Dress Purchase',
+      reference_type: 'expense',
+      reference_id: exp.id,
+      amount: exp.amount,
+      transaction_date: exp.expense_date,
+      description: `Acquisition expense: ${newDress.name}`,
+      created_by: 'admin-01',
+      created_at: new Date().toISOString()
+    });
+  }
+
   persistLocalState();
   return newDress;
 }
@@ -179,9 +226,7 @@ export async function updateDressOperationalStatus(
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    // 1. Update dress
-    const { data: updatedDress, error: dressError } = await supabase
-      .from('dresses')
+    const { data: updatedDress, error: dressError } = await (supabase.from('dresses') as any)
       .update({ operational_status: newStatus, updated_at: new Date().toISOString() })
       .eq('id', dressId)
       .select()
@@ -189,8 +234,7 @@ export async function updateDressOperationalStatus(
 
     if (dressError) throw new Error(dressError.message);
 
-    // 2. Insert audit log
-    await supabase.from('dress_status_history').insert({
+    await (supabase.from('dress_status_history') as any).insert({
       dress_id: dressId,
       old_status: oldStatus,
       new_status: newStatus,
@@ -201,7 +245,6 @@ export async function updateDressOperationalStatus(
     return updatedDress;
   }
 
-  // Memory fallback
   dress.operational_status = newStatus;
   dress.updated_at = new Date().toISOString();
 
@@ -225,8 +268,7 @@ export async function updateDress(
 ): Promise<Dress> {
   if (isLiveSupabase()) {
     const supabase = createClient();
-    const { data: updated, error } = await supabase
-      .from('dresses')
+    const { data: updated, error } = await (supabase.from('dresses') as any)
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
@@ -235,7 +277,7 @@ export async function updateDress(
     return updated;
   }
 
-  const idx = localDresses.findIndex(d => d.id === id);
+  const idx = localDresses.findIndex((d) => d.id === id);
   if (idx === -1) throw new Error('Dress not found');
 
   localDresses[idx] = {
@@ -250,25 +292,24 @@ export async function updateDress(
 export async function getDressStatusHistory(dressId: string): Promise<DressStatusHistory[]> {
   if (isLiveSupabase()) {
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from('dress_status_history')
+    const { data, error } = await (supabase.from('dress_status_history') as any)
       .select('*')
       .eq('dress_id', dressId)
       .order('changed_at', { ascending: false });
     if (error) throw new Error(error.message);
     return data || [];
   }
-  return localHistory.filter(h => h.dress_id === dressId);
+  return localHistory.filter((h) => h.dress_id === dressId);
 }
 
 // ----------------------------------------------------------------------------
-// CUSTOMER CRM SERVICES
+// CUSTOMER SERVICES
 // ----------------------------------------------------------------------------
 
 export async function getCustomers(search?: string): Promise<Customer[]> {
   if (isLiveSupabase()) {
     const supabase = createClient();
-    let query = supabase.from('customers').select('*').order('full_name', { ascending: true });
+    let query = (supabase.from('customers') as any).select('*').order('full_name', { ascending: true });
     if (search) {
       query = query.or(`full_name.ilike.%${search}%,contact_number.ilike.%${search}%`);
     }
@@ -277,7 +318,7 @@ export async function getCustomers(search?: string): Promise<Customer[]> {
     return data || [];
   }
 
-  return localCustomers.filter(c => {
+  return localCustomers.filter((c) => {
     if (!search) return true;
     const q = search.toLowerCase();
     return c.full_name.toLowerCase().includes(q) || c.contact_number.includes(q);
@@ -287,11 +328,11 @@ export async function getCustomers(search?: string): Promise<Customer[]> {
 export async function getCustomerById(id: string): Promise<Customer | null> {
   if (isLiveSupabase()) {
     const supabase = createClient();
-    const { data, error } = await supabase.from('customers').select('*').eq('id', id).single();
+    const { data, error } = await (supabase.from('customers') as any).select('*').eq('id', id).single();
     if (error) return null;
     return data;
   }
-  return localCustomers.find(c => c.id === id) || null;
+  return localCustomers.find((c) => c.id === id) || null;
 }
 
 export async function findOrCreateCustomer(customerData: {
@@ -301,20 +342,16 @@ export async function findOrCreateCustomer(customerData: {
   notes?: string | null;
 }): Promise<Customer> {
   const cleanPhone = customerData.contact_number.trim();
-  
+
   if (isLiveSupabase()) {
     const supabase = createClient();
-    // 1. Check existing by phone number
-    const { data: existing } = await supabase
-      .from('customers')
+    const { data: existing } = await (supabase.from('customers') as any)
       .select('*')
       .eq('contact_number', cleanPhone)
       .maybeSingle();
 
     if (existing) {
-      // Update details if supplied
-      const { data: updated } = await supabase
-        .from('customers')
+      const { data: updated } = await (supabase.from('customers') as any)
         .update({
           full_name: customerData.full_name,
           facebook_url: customerData.facebook_url || existing.facebook_url,
@@ -327,10 +364,8 @@ export async function findOrCreateCustomer(customerData: {
       return updated || existing;
     }
 
-    // 2. Create new customer
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: created, error } = await supabase
-      .from('customers')
+    const { data: created, error } = await (supabase.from('customers') as any)
       .insert({
         full_name: customerData.full_name,
         contact_number: cleanPhone,
@@ -344,8 +379,7 @@ export async function findOrCreateCustomer(customerData: {
     return created;
   }
 
-  // Memory store fallback
-  const existingIndex = localCustomers.findIndex(c => c.contact_number === cleanPhone);
+  const existingIndex = localCustomers.findIndex((c) => c.contact_number === cleanPhone);
   if (existingIndex !== -1) {
     localCustomers[existingIndex] = {
       ...localCustomers[existingIndex],
@@ -380,8 +414,7 @@ export async function updateCustomer(
 ): Promise<Customer> {
   if (isLiveSupabase()) {
     const supabase = createClient();
-    const { data: updated, error } = await supabase
-      .from('customers')
+    const { data: updated, error } = await (supabase.from('customers') as any)
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
@@ -390,7 +423,7 @@ export async function updateCustomer(
     return updated;
   }
 
-  const idx = localCustomers.findIndex(c => c.id === id);
+  const idx = localCustomers.findIndex((c) => c.id === id);
   if (idx === -1) throw new Error('Customer not found');
 
   localCustomers[idx] = {
@@ -412,7 +445,6 @@ export async function checkDressAvailability(
   endDate: string,
   excludeRentalId?: string
 ): Promise<{ available: boolean; reason?: string }> {
-  // 1. Check dress operational status
   const dress = await getDressById(dressId);
   if (!dress) return { available: false, reason: 'Dress not found' };
 
@@ -423,25 +455,23 @@ export async function checkDressAvailability(
     };
   }
 
-  // 2. Check for conflicting active rentals
   let rentals: Rental[] = [];
   if (isLiveSupabase()) {
     const supabase = createClient();
-    let query = supabase
-      .from('rentals')
+    let query = (supabase.from('rentals') as any)
       .select('*')
       .eq('dress_id', dressId)
-      .ne('status', 'cancelled');
+      .neq('status', 'cancelled');
     if (excludeRentalId) {
-      query = query.ne('id', excludeRentalId);
+      query = query.neq('id', excludeRentalId);
     }
     const { data } = await query;
     rentals = data || [];
   } else {
-    rentals = localRentals.filter(r => r.dress_id === dressId && r.status !== 'cancelled' && r.id !== excludeRentalId);
+    rentals = localRentals.filter((r) => r.dress_id === dressId && r.status !== 'cancelled' && r.id !== excludeRentalId);
   }
 
-  const conflicting = rentals.find(r => doDatesOverlap(startDate, endDate, r.rental_start_date, r.rental_end_date));
+  const conflicting = rentals.find((r) => doDatesOverlap(startDate, endDate, r.rental_start_date, r.rental_end_date));
   if (conflicting) {
     return {
       available: false,
@@ -462,8 +492,7 @@ export async function getRentals(filters?: {
 
   if (isLiveSupabase()) {
     const supabase = createClient();
-    let query = supabase
-      .from('rentals')
+    let query = (supabase.from('rentals') as any)
       .select('*, customer:customers(*), dress:dresses(*)')
       .order('created_at', { ascending: false });
 
@@ -482,12 +511,12 @@ export async function getRentals(filters?: {
     items = data || [];
   } else {
     items = localRentals
-      .map(r => ({
+      .map((r) => ({
         ...r,
-        customer: localCustomers.find(c => c.id === r.customer_id),
-        dress: localDresses.find(d => d.id === r.dress_id)
+        customer: localCustomers.find((c) => c.id === r.customer_id),
+        dress: localDresses.find((d) => d.id === r.dress_id)
       }))
-      .filter(r => {
+      .filter((r) => {
         if (filters?.status && filters.status !== 'all' && r.status !== filters.status) return false;
         if (filters?.dress_id && r.dress_id !== filters.dress_id) return false;
         if (filters?.customer_id && r.customer_id !== filters.customer_id) return false;
@@ -507,8 +536,7 @@ export async function getRentals(filters?: {
 export async function getRentalById(id: string): Promise<Rental | null> {
   if (isLiveSupabase()) {
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from('rentals')
+    const { data, error } = await (supabase.from('rentals') as any)
       .select('*, customer:customers(*), dress:dresses(*)')
       .eq('id', id)
       .single();
@@ -516,13 +544,13 @@ export async function getRentalById(id: string): Promise<Rental | null> {
     return data;
   }
 
-  const rental = localRentals.find(r => r.id === id);
+  const rental = localRentals.find((r) => r.id === id);
   if (!rental) return null;
 
   return {
     ...rental,
-    customer: localCustomers.find(c => c.id === rental.customer_id),
-    dress: localDresses.find(d => d.id === rental.dress_id)
+    customer: localCustomers.find((c) => c.id === rental.customer_id),
+    dress: localDresses.find((d) => d.id === rental.dress_id)
   };
 }
 
@@ -534,10 +562,10 @@ export async function createRental(rentalData: {
   rental_price: number;
   additional_charges: number;
   discount: number;
+  deposit_amount?: number;
   notes?: string | null;
   status?: RentalOrderStatus;
 }): Promise<Rental> {
-  // 1. Availability check (Double booking prevention)
   const availability = await checkDressAvailability(
     rentalData.dress_id,
     rentalData.rental_start_date,
@@ -548,6 +576,8 @@ export async function createRental(rentalData: {
     throw new Error(availability.reason || 'This dress is unavailable for the selected dates.');
   }
 
+  const dress = await getDressById(rentalData.dress_id);
+  const depAmount = rentalData.deposit_amount ?? (dress ? dress.default_deposit : 1000);
   const totalPrice = Math.max(0, rentalData.rental_price + rentalData.additional_charges - rentalData.discount);
 
   const newRental: Rental = {
@@ -559,6 +589,11 @@ export async function createRental(rentalData: {
     rental_price: rentalData.rental_price,
     additional_charges: rentalData.additional_charges,
     discount: rentalData.discount,
+    deposit_amount: depAmount,
+    deposit_status: 'held',
+    deposit_returned_amount: 0,
+    deposit_retained_amount: 0,
+    deposit_retention_reason: null,
     total_price: totalPrice,
     status: rentalData.status || 'confirmed',
     notes: rentalData.notes || null,
@@ -571,8 +606,7 @@ export async function createRental(rentalData: {
   if (isLiveSupabase()) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-      .from('rentals')
+    const { data, error } = await (supabase.from('rentals') as any)
       .insert({
         ...newRental,
         created_by: user?.id || null,
@@ -582,16 +616,71 @@ export async function createRental(rentalData: {
       .single();
 
     if (error) throw new Error(error.message);
+
+    // Audit transaction entries
+    await (supabase.from('financial_transactions') as any).insert({
+      transaction_type: 'income',
+      category: 'Rental Revenue',
+      reference_type: 'rental',
+      reference_id: data.id,
+      amount: totalPrice,
+      transaction_date: data.rental_start_date,
+      description: `Rental revenue for order ${data.id.slice(0, 8)}`,
+      created_by: user?.id || null
+    });
+
+    if (depAmount > 0) {
+      await (supabase.from('financial_transactions') as any).insert({
+        transaction_type: 'deposit_received',
+        category: 'Deposit Held',
+        reference_type: 'rental',
+        reference_id: data.id,
+        amount: depAmount,
+        transaction_date: data.rental_start_date,
+        description: `Refundable deposit held for order ${data.id.slice(0, 8)}`,
+        created_by: user?.id || null
+      });
+    }
+
     return data;
   }
 
   localRentals.unshift(newRental);
+
+  localTransactions.unshift({
+    id: `t-${Date.now()}-1`,
+    transaction_type: 'income',
+    category: 'Rental Revenue',
+    reference_type: 'rental',
+    reference_id: newRental.id,
+    amount: totalPrice,
+    transaction_date: newRental.rental_start_date,
+    description: `Rental revenue for order ${newRental.id.slice(0, 8)}`,
+    created_by: 'admin-01',
+    created_at: new Date().toISOString()
+  });
+
+  if (depAmount > 0) {
+    localTransactions.unshift({
+      id: `t-${Date.now()}-2`,
+      transaction_type: 'deposit_received',
+      category: 'Deposit Held',
+      reference_type: 'rental',
+      reference_id: newRental.id,
+      amount: depAmount,
+      transaction_date: newRental.rental_start_date,
+      description: `Refundable deposit held for order ${newRental.id.slice(0, 8)}`,
+      created_by: 'admin-01',
+      created_at: new Date().toISOString()
+    });
+  }
+
   persistLocalState();
 
   return {
     ...newRental,
-    customer: localCustomers.find(c => c.id === newRental.customer_id),
-    dress: localDresses.find(d => d.id === newRental.dress_id)
+    customer: localCustomers.find((c) => c.id === newRental.customer_id),
+    dress: localDresses.find((d) => d.id === newRental.dress_id)
   };
 }
 
@@ -606,8 +695,7 @@ export async function updateRentalStatus(
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { data: updated, error } = await supabase
-      .from('rentals')
+    const { data: updated, error } = await (supabase.from('rentals') as any)
       .update({
         status: newStatus,
         updated_by: user?.id || null,
@@ -619,9 +707,6 @@ export async function updateRentalStatus(
 
     if (error) throw new Error(error.message);
 
-    // CRITICAL OPERATIONAL WORKFLOW RULE:
-    // When rental transitions to 'returned', automatically transition dress operational status to 'cleaning'.
-    // DO NOT automatically set dress to 'available'. Admin must explicitly set cleaning -> available!
     if (newStatus === 'returned' && rental.dress_id) {
       await updateDressOperationalStatus(
         rental.dress_id,
@@ -633,13 +718,12 @@ export async function updateRentalStatus(
     return updated;
   }
 
-  const idx = localRentals.findIndex(r => r.id === rentalId);
+  const idx = localRentals.findIndex((r) => r.id === rentalId);
   if (idx !== -1) {
     localRentals[idx].status = newStatus;
     localRentals[idx].updated_at = new Date().toISOString();
   }
 
-  // Execute operational rule in local memory store
   if (newStatus === 'returned' && rental.dress_id) {
     await updateDressOperationalStatus(
       rental.dress_id,
@@ -653,6 +737,117 @@ export async function updateRentalStatus(
   return result!;
 }
 
+// Deposit processing: Full return, Partial retention, Full retention
+export async function updateRentalDeposit(
+  rentalId: string,
+  depositStatus: DepositStatus,
+  returnedAmount: number,
+  retainedAmount: number,
+  reason?: string
+): Promise<Rental> {
+  const rental = await getRentalById(rentalId);
+  if (!rental) throw new Error('Rental order not found');
+
+  if (returnedAmount < 0 || retainedAmount < 0) {
+    throw new Error('Amounts cannot be negative.');
+  }
+
+  if (returnedAmount + retainedAmount > rental.deposit_amount) {
+    throw new Error(`Total of returned (₱${returnedAmount}) + retained (₱${retainedAmount}) cannot exceed original deposit (₱${rental.deposit_amount}).`);
+  }
+
+  if (isLiveSupabase()) {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: updated, error } = await (supabase.from('rentals') as any)
+      .update({
+        deposit_status: depositStatus,
+        deposit_returned_amount: returnedAmount,
+        deposit_retained_amount: retainedAmount,
+        deposit_retention_reason: reason || null,
+        updated_by: user?.id || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', rentalId)
+      .select('*, customer:customers(*), dress:dresses(*)')
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    if (returnedAmount > 0) {
+      await (supabase.from('financial_transactions') as any).insert({
+        transaction_type: 'deposit_returned',
+        category: 'Deposit Return',
+        reference_type: 'rental',
+        reference_id: rentalId,
+        amount: returnedAmount,
+        transaction_date: new Date().toISOString().split('T')[0],
+        description: `Deposit returned to customer for order ${rentalId.slice(0, 8)}`,
+        created_by: user?.id || null
+      });
+    }
+
+    if (retainedAmount > 0) {
+      await (supabase.from('financial_transactions') as any).insert({
+        transaction_type: 'deposit_retained',
+        category: 'Retained Deposits',
+        reference_type: 'rental',
+        reference_id: rentalId,
+        amount: retainedAmount,
+        transaction_date: new Date().toISOString().split('T')[0],
+        description: `Retained deposit for order ${rentalId.slice(0, 8)}: ${reason || 'Damage/Late charge'}`,
+        created_by: user?.id || null
+      });
+    }
+
+    return updated;
+  }
+
+  const idx = localRentals.findIndex((r) => r.id === rentalId);
+  if (idx !== -1) {
+    localRentals[idx].deposit_status = depositStatus;
+    localRentals[idx].deposit_returned_amount = returnedAmount;
+    localRentals[idx].deposit_retained_amount = retainedAmount;
+    localRentals[idx].deposit_retention_reason = reason || null;
+    localRentals[idx].updated_at = new Date().toISOString();
+  }
+
+  if (returnedAmount > 0) {
+    localTransactions.unshift({
+      id: `t-${Date.now()}-ret`,
+      transaction_type: 'deposit_returned',
+      category: 'Deposit Return',
+      reference_type: 'rental',
+      reference_id: rentalId,
+      amount: returnedAmount,
+      transaction_date: new Date().toISOString().split('T')[0],
+      description: `Deposit returned to customer for order ${rentalId.slice(0, 8)}`,
+      created_by: 'admin-01',
+      created_at: new Date().toISOString()
+    });
+  }
+
+  if (retainedAmount > 0) {
+    localTransactions.unshift({
+      id: `t-${Date.now()}-keep`,
+      transaction_type: 'deposit_retained',
+      category: 'Retained Deposits',
+      reference_type: 'rental',
+      reference_id: rentalId,
+      amount: retainedAmount,
+      transaction_date: new Date().toISOString().split('T')[0],
+      description: `Retained deposit for order ${rentalId.slice(0, 8)}: ${reason || 'Damage/Late charge'}`,
+      created_by: 'admin-01',
+      created_at: new Date().toISOString()
+    });
+  }
+
+  persistLocalState();
+  const res = await getRentalById(rentalId);
+  return res!;
+}
+
 export async function updateRental(
   rentalId: string,
   data: {
@@ -663,6 +858,7 @@ export async function updateRental(
     rental_price?: number;
     additional_charges?: number;
     discount?: number;
+    deposit_amount?: number;
     status?: RentalOrderStatus;
     notes?: string | null;
   }
@@ -674,7 +870,6 @@ export async function updateRental(
   const targetStart = data.rental_start_date || existing.rental_start_date;
   const targetEnd = data.rental_end_date || existing.rental_end_date;
 
-  // Re-check availability excluding current rental
   const availability = await checkDressAvailability(targetDressId, targetStart, targetEnd, rentalId);
   if (!availability.available) {
     throw new Error(availability.reason || 'Requested dates or dress are unavailable.');
@@ -689,8 +884,7 @@ export async function updateRental(
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { data: updated, error } = await supabase
-      .from('rentals')
+    const { data: updated, error } = await (supabase.from('rentals') as any)
       .update({
         ...data,
         total_price: totalPrice,
@@ -705,7 +899,7 @@ export async function updateRental(
     return updated;
   }
 
-  const idx = localRentals.findIndex(r => r.id === rentalId);
+  const idx = localRentals.findIndex((r) => r.id === rentalId);
   if (idx === -1) throw new Error('Rental not found');
 
   localRentals[idx] = {
@@ -721,7 +915,199 @@ export async function updateRental(
 }
 
 // ----------------------------------------------------------------------------
-// SECURE PUBLIC AVAILABILITY API (Zero Customer PII Exposure)
+// EXPENSE SERVICES
+// ----------------------------------------------------------------------------
+
+export async function getExpenses(category?: string): Promise<Expense[]> {
+  if (isLiveSupabase()) {
+    const supabase = createClient();
+    let query = (supabase.from('expenses') as any).select('*').order('expense_date', { ascending: false });
+    if (category && category !== 'all') {
+      query = query.eq('category', category);
+    }
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+
+  return localExpenses.filter((e) => {
+    if (category && category !== 'all' && e.category !== category) return false;
+    return true;
+  });
+}
+
+export async function createExpense(expenseData: {
+  category: string;
+  description: string;
+  amount: number;
+  expense_date: string;
+  receipt_reference?: string | null;
+  notes?: string | null;
+}): Promise<Expense> {
+  const newExp: Expense = {
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `e-${Date.now()}`,
+    category: expenseData.category,
+    description: expenseData.description,
+    amount: Math.max(0, expenseData.amount),
+    expense_date: expenseData.expense_date,
+    receipt_reference: expenseData.receipt_reference || null,
+    notes: expenseData.notes || null,
+    created_by: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  if (isLiveSupabase()) {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: created, error } = await (supabase.from('expenses') as any)
+      .insert({ ...newExp, created_by: user?.id || null })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    await (supabase.from('financial_transactions') as any).insert({
+      transaction_type: 'expense',
+      category: created.category,
+      reference_type: 'expense',
+      reference_id: created.id,
+      amount: created.amount,
+      transaction_date: created.expense_date,
+      description: created.description,
+      created_by: user?.id || null
+    });
+
+    return created;
+  }
+
+  localExpenses.unshift(newExp);
+
+  localTransactions.unshift({
+    id: `t-${Date.now()}`,
+    transaction_type: 'expense',
+    category: newExp.category,
+    reference_type: 'expense',
+    reference_id: newExp.id,
+    amount: newExp.amount,
+    transaction_date: newExp.expense_date,
+    description: newExp.description,
+    created_by: 'admin-01',
+    created_at: new Date().toISOString()
+  });
+
+  persistLocalState();
+  return newExp;
+}
+
+// ----------------------------------------------------------------------------
+// FINANCIAL TRANSACTIONS & SUMMARY METRICS
+// ----------------------------------------------------------------------------
+
+export async function getFinancialTransactions(): Promise<FinancialTransaction[]> {
+  if (isLiveSupabase()) {
+    const supabase = createClient();
+    const { data, error } = await (supabase.from('financial_transactions') as any)
+      .select('*')
+      .order('transaction_date', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+  return localTransactions;
+}
+
+export async function getFinanceSummary(range: string = '30_days'): Promise<FinanceSummary> {
+  const [rList, eList] = await Promise.all([getRentals(), getExpenses()]);
+
+  const now = new Date();
+  let startDateLimit: Date | null = null;
+  let label = 'Financial Summary';
+
+  if (range === '7_days') {
+    startDateLimit = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    label = 'Last 7 Days';
+  } else if (range === '30_days') {
+    startDateLimit = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    label = 'Last 30 Days';
+  } else if (range === 'this_month') {
+    startDateLimit = new Date(now.getFullYear(), now.getMonth(), 1);
+    label = `${now.toLocaleString('en-US', { month: 'long' })} ${now.getFullYear()}`;
+  } else if (range === 'quarter') {
+    const qMonth = Math.floor(now.getMonth() / 3) * 3;
+    startDateLimit = new Date(now.getFullYear(), qMonth, 1);
+    label = `Current Quarter (${now.getFullYear()})`;
+  } else if (range === 'this_year') {
+    startDateLimit = new Date(now.getFullYear(), 0, 1);
+    label = `Year ${now.getFullYear()}`;
+  } else {
+    label = 'All Time Financials';
+  }
+
+  // Filter non-cancelled rentals in range
+  const filteredRentals = rList.filter((r) => {
+    if (r.status === 'cancelled') return false;
+    if (!startDateLimit) return true;
+    return new Date(r.rental_start_date) >= startDateLimit;
+  });
+
+  // Filter expenses in range
+  const filteredExpenses = eList.filter((e) => {
+    if (!startDateLimit) return true;
+    return new Date(e.expense_date) >= startDateLimit;
+  });
+
+  // Calculate Recognized Revenues
+  let rental_revenue = 0;
+  let additional_charges = 0;
+  let retained_deposits = 0;
+  let deposits_held = 0;
+
+  filteredRentals.forEach((r) => {
+    rental_revenue += Number(r.rental_price || 0);
+    additional_charges += Number(r.additional_charges || 0);
+    retained_deposits += Number(r.deposit_retained_amount || 0);
+
+    if (r.deposit_status === 'held' || r.deposit_status === 'pending') {
+      deposits_held += Number(r.deposit_amount || 0);
+    }
+  });
+
+  const recognized_revenue = rental_revenue + additional_charges + retained_deposits;
+
+  // Calculate Expenses Breakdown
+  let total_expenses = 0;
+  const expCatMap: { [cat: string]: number } = {};
+
+  filteredExpenses.forEach((e) => {
+    const amt = Number(e.amount || 0);
+    total_expenses += amt;
+    expCatMap[e.category] = (expCatMap[e.category] || 0) + amt;
+  });
+
+  const expenses_by_category = Object.keys(expCatMap).map((cat) => ({
+    category: cat,
+    amount: expCatMap[cat]
+  }));
+
+  const net_income = recognized_revenue - total_expenses;
+
+  return {
+    rental_revenue,
+    additional_charges,
+    retained_deposits,
+    other_income: 0,
+    recognized_revenue,
+    total_expenses,
+    net_income,
+    deposits_held,
+    expenses_by_category,
+    date_range_label: label
+  };
+}
+
+// ----------------------------------------------------------------------------
+// SECURE PUBLIC AVAILABILITY API
 // ----------------------------------------------------------------------------
 
 export async function getPublicAvailability(params: {
@@ -733,7 +1119,7 @@ export async function getPublicAvailability(params: {
 }): Promise<PublicDressAvailability[]> {
   if (isLiveSupabase()) {
     const supabase = createClient();
-    const { data, error } = await supabase.rpc('get_public_dress_availability', {
+    const { data, error } = await (supabase as any).rpc('get_public_dress_availability', {
       p_start_date: params.startDate || undefined,
       p_end_date: params.endDate || undefined,
       p_search: params.search || '',
@@ -745,23 +1131,22 @@ export async function getPublicAvailability(params: {
     return data || [];
   }
 
-  // Pure public data transformer — NO customer data, NO phone numbers, NO notes
-  const activeRentals = localRentals.filter(r => r.status !== 'cancelled');
+  const activeRentals = localRentals.filter((r) => r.status !== 'cancelled');
 
   return localDresses
-    .filter(d => d.operational_status !== 'archived')
-    .filter(d => {
+    .filter((d) => d.operational_status !== 'archived')
+    .filter((d) => {
       if (params.search && !d.name.toLowerCase().includes(params.search.toLowerCase())) return false;
       if (params.color && params.color !== 'all' && !d.color.toLowerCase().includes(params.color.toLowerCase())) return false;
       if (params.size && params.size !== 'all' && !d.size.toLowerCase().includes(params.size.toLowerCase())) return false;
       return true;
     })
-    .map(d => {
+    .map((d) => {
       let available = d.operational_status === 'available';
 
       if (available && params.startDate && params.endDate) {
         const hasConflict = activeRentals.some(
-          r => r.dress_id === d.id && doDatesOverlap(params.startDate!, params.endDate!, r.rental_start_date, r.rental_end_date)
+          (r) => r.dress_id === d.id && doDatesOverlap(params.startDate!, params.endDate!, r.rental_start_date, r.rental_end_date)
         );
         if (hasConflict) available = false;
       }

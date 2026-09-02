@@ -18,6 +18,21 @@ export type RentalOrderStatus =
   | 'completed'
   | 'cancelled';
 
+export type DepositStatus =
+  | 'pending'
+  | 'held'
+  | 'eligible_for_return'
+  | 'returned'
+  | 'retained'
+  | 'partially_retained';
+
+export type FinancialTransactionType =
+  | 'income'
+  | 'expense'
+  | 'deposit_received'
+  | 'deposit_returned'
+  | 'deposit_retained';
+
 export interface Profile {
   id: string;
   full_name: string;
@@ -31,7 +46,9 @@ export interface Dress {
   name: string;
   color: string;
   size: string;
+  cost: number;
   default_price: number;
+  default_deposit: number;
   main_photo_path: string | null;
   operational_status: DressOperationalStatus;
   created_by: string | null;
@@ -67,6 +84,11 @@ export interface Rental {
   rental_price: number;
   additional_charges: number;
   discount: number;
+  deposit_amount: number;
+  deposit_status: DepositStatus;
+  deposit_returned_amount: number;
+  deposit_retained_amount: number;
+  deposit_retention_reason: string | null;
   total_price: number;
   status: RentalOrderStatus;
   notes: string | null;
@@ -74,9 +96,35 @@ export interface Rental {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
-  // Joined fields for display convenience
+  // Joined fields
   customer?: Customer;
   dress?: Dress;
+}
+
+export interface Expense {
+  id: string;
+  category: string;
+  description: string;
+  amount: number;
+  expense_date: string;
+  receipt_reference: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinancialTransaction {
+  id: string;
+  transaction_type: FinancialTransactionType;
+  category: string;
+  reference_type: string | null;
+  reference_id: string | null;
+  amount: number;
+  transaction_date: string;
+  description: string;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface DressStatusHistory {
@@ -87,7 +135,6 @@ export interface DressStatusHistory {
   reason: string | null;
   changed_by: string | null;
   changed_at: string;
-  changed_by_profile?: Profile;
 }
 
 export interface PublicDressAvailability {
@@ -101,39 +148,30 @@ export interface PublicDressAvailability {
   is_available: boolean;
 }
 
+export interface FinanceSummary {
+  rental_revenue: number;
+  additional_charges: number;
+  retained_deposits: number;
+  other_income: number;
+  recognized_revenue: number;
+  total_expenses: number;
+  net_income: number;
+  deposits_held: number;
+  expenses_by_category: { category: string; amount: number }[];
+  date_range_label: string;
+}
+
 export type Database = {
   public: {
     Tables: {
-      profiles: {
-        Row: Profile;
-        Insert: Omit<Profile, 'created_at' | 'updated_at'> & { created_at?: string; updated_at?: string };
-        Update: Partial<Omit<Profile, 'id'>>;
-      };
-      dresses: {
-        Row: Dress;
-        Insert: Omit<Dress, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
-        Update: Partial<Omit<Dress, 'id'>>;
-      };
-      dress_photos: {
-        Row: DressPhoto;
-        Insert: Omit<DressPhoto, 'id' | 'created_at'> & { id?: string; created_at?: string };
-        Update: Partial<Omit<DressPhoto, 'id'>>;
-      };
-      customers: {
-        Row: Customer;
-        Insert: Omit<Customer, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
-        Update: Partial<Omit<Customer, 'id'>>;
-      };
-      rentals: {
-        Row: Rental;
-        Insert: Omit<Rental, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
-        Update: Partial<Omit<Rental, 'id'>>;
-      };
-      dress_status_history: {
-        Row: DressStatusHistory;
-        Insert: Omit<DressStatusHistory, 'id' | 'changed_at'> & { id?: string; changed_at?: string };
-        Update: Partial<Omit<DressStatusHistory, 'id'>>;
-      };
+      profiles: { Row: Profile; Insert: any; Update: any };
+      dresses: { Row: Dress; Insert: any; Update: any };
+      dress_photos: { Row: DressPhoto; Insert: any; Update: any };
+      customers: { Row: Customer; Insert: any; Update: any };
+      rentals: { Row: Rental; Insert: any; Update: any };
+      expenses: { Row: Expense; Insert: any; Update: any };
+      financial_transactions: { Row: FinancialTransaction; Insert: any; Update: any };
+      dress_status_history: { Row: DressStatusHistory; Insert: any; Update: any };
     };
     Functions: {
       get_public_dress_availability: {

@@ -1,5 +1,5 @@
 -- ============================================================================
--- DRESS RENTAL MANAGEMENT & AVAILABILITY WEB APP — DATABASE SCHEMA
+-- DRESS RENTAL MANAGEMENT & AVAILABILITY WEB APP — DATABASE SCHEMA (WITH FINANCE)
 -- ============================================================================
 -- Paste this entire SQL file into your Supabase SQL Editor.
 -- ============================================================================
@@ -31,6 +31,23 @@ CREATE TYPE rental_order_status AS ENUM (
   'cancelled'
 );
 
+CREATE TYPE deposit_status_enum AS ENUM (
+  'pending',
+  'held',
+  'eligible_for_return',
+  'returned',
+  'retained',
+  'partially_retained'
+);
+
+CREATE TYPE financial_transaction_type AS ENUM (
+  'income',
+  'expense',
+  'deposit_received',
+  'deposit_returned',
+  'deposit_retained'
+);
+
 -- 3. User Profiles Table (Linked to auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -40,13 +57,15 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. Dresses Table
+-- 4. Dresses Table (With Acquisition Cost & Default Deposit)
 CREATE TABLE IF NOT EXISTS public.dresses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   color TEXT NOT NULL,
   size TEXT NOT NULL,
+  cost NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (cost >= 0),
   default_price NUMERIC(10, 2) NOT NULL CHECK (default_price >= 0),
+  default_deposit NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (default_deposit >= 0),
   main_photo_path TEXT,
   operational_status dress_operational_status NOT NULL DEFAULT 'available',
   created_by UUID REFERENCES auth.users(id),
@@ -54,7 +73,7 @@ CREATE TABLE IF NOT EXISTS public.dresses (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 5. Dress Photos Table (Supports future multi-photo functionality)
+-- 5. Dress Photos Table
 CREATE TABLE IF NOT EXISTS public.dress_photos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dress_id UUID NOT NULL REFERENCES public.dresses(id) ON DELETE CASCADE,
@@ -63,7 +82,7 @@ CREATE TABLE IF NOT EXISTS public.dress_photos (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 6. Customers Table (CRM Normalization)
+-- 6. Customers Table (CRM)
 CREATE TABLE IF NOT EXISTS public.customers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name TEXT NOT NULL,
@@ -75,7 +94,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 7. Rentals / Orders Table
+-- 7. Rentals / Orders Table (With Deposit Fields)
 CREATE TABLE IF NOT EXISTS public.rentals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE RESTRICT,
@@ -85,6 +104,11 @@ CREATE TABLE IF NOT EXISTS public.rentals (
   rental_price NUMERIC(10, 2) NOT NULL CHECK (rental_price >= 0),
   additional_charges NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (additional_charges >= 0),
   discount NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (discount >= 0),
+  deposit_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (deposit_amount >= 0),
+  deposit_status deposit_status_enum NOT NULL DEFAULT 'held',
+  deposit_returned_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (deposit_returned_amount >= 0),
+  deposit_retained_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (deposit_retained_amount >= 0),
+  deposit_retention_reason TEXT,
   total_price NUMERIC(10, 2) NOT NULL CHECK (total_price >= 0),
   status rental_order_status NOT NULL DEFAULT 'pending',
   notes TEXT,
@@ -92,10 +116,39 @@ CREATE TABLE IF NOT EXISTS public.rentals (
   updated_by UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT check_rental_dates CHECK (rental_end_date >= rental_start_date)
+  CONSTRAINT check_rental_dates CHECK (rental_end_date >= rental_start_date),
+  CONSTRAINT check_deposit_amounts CHECK (deposit_returned_amount + deposit_retained_amount <= deposit_amount)
 );
 
--- 8. Dress Operational Status Audit History Table
+-- 8. Business Expenses Table
+CREATE TABLE IF NOT EXISTS public.expenses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category TEXT NOT NULL,
+  description TEXT NOT NULL,
+  amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+  expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  receipt_reference TEXT,
+  notes TEXT,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 9. Normalized Financial Transactions Audit Table
+CREATE TABLE IF NOT EXISTS public.financial_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_type financial_transaction_type NOT NULL,
+  category TEXT NOT NULL,
+  reference_type TEXT,
+  reference_id UUID,
+  amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+  transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  description TEXT NOT NULL,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 10. Dress Status History Table
 CREATE TABLE IF NOT EXISTS public.dress_status_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dress_id UUID NOT NULL REFERENCES public.dresses(id) ON DELETE CASCADE,
@@ -107,10 +160,9 @@ CREATE TABLE IF NOT EXISTS public.dress_status_history (
 );
 
 -- ============================================================================
--- DATABASE CONSTRAINTS & INDEXES
+-- CONSTRAINTS & INDEXES
 -- ============================================================================
 
--- Double Booking Prevention: Exclusion constraint for non-cancelled rentals on overlapping dates
 ALTER TABLE public.rentals
   DROP CONSTRAINT IF EXISTS prevent_overlapping_rentals;
 
@@ -122,16 +174,19 @@ ALTER TABLE public.rentals
   )
   WHERE (status NOT IN ('cancelled'));
 
--- Indexes for common filter & availability queries
 CREATE INDEX IF NOT EXISTS idx_dresses_operational_status ON public.dresses(operational_status);
 CREATE INDEX IF NOT EXISTS idx_rentals_dress_id ON public.rentals(dress_id);
 CREATE INDEX IF NOT EXISTS idx_rentals_customer_id ON public.rentals(customer_id);
 CREATE INDEX IF NOT EXISTS idx_rentals_dates ON public.rentals(rental_start_date, rental_end_date);
 CREATE INDEX IF NOT EXISTS idx_rentals_status ON public.rentals(status);
+CREATE INDEX IF NOT EXISTS idx_rentals_deposit_status ON public.rentals(deposit_status);
 CREATE INDEX IF NOT EXISTS idx_customers_contact_number ON public.customers(contact_number);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON public.expenses(expense_date);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON public.expenses(category);
+CREATE INDEX IF NOT EXISTS idx_fin_tx_date ON public.financial_transactions(transaction_date);
 
 -- ============================================================================
--- AUTOMATIC PROFILE CREATION TRIGGER ON AUTH USER SIGNUP
+-- AUTOMATIC TRIGGERS
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -153,10 +208,6 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- ============================================================================
--- AUTOMATIC UPDATED_AT TIMESTAMP TRIGGER
--- ============================================================================
-
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -174,8 +225,11 @@ CREATE TRIGGER update_customers_modtime BEFORE UPDATE ON public.customers FOR EA
 DROP TRIGGER IF EXISTS update_rentals_modtime ON public.rentals;
 CREATE TRIGGER update_rentals_modtime BEFORE UPDATE ON public.rentals FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+DROP TRIGGER IF EXISTS update_expenses_modtime ON public.expenses;
+CREATE TRIGGER update_expenses_modtime BEFORE UPDATE ON public.expenses FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 -- ============================================================================
--- SECURE PUBLIC AVAILABILITY RPC FUNCTION (Zero Customer PII Exposure)
+-- SECURE PUBLIC AVAILABILITY RPC FUNCTION (Zero Customer PII / Finance Exposure)
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.get_public_dress_availability(
@@ -206,9 +260,7 @@ BEGIN
     d.main_photo_path,
     d.operational_status,
     CASE
-      -- Dress must be physically available
       WHEN d.operational_status != 'available' THEN FALSE
-      -- If dates are provided, check if an active rental overlaps
       WHEN p_start_date IS NOT NULL AND p_end_date IS NOT NULL THEN
         NOT EXISTS (
           SELECT 1
@@ -239,50 +291,27 @@ ALTER TABLE public.dresses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dress_photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rentals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.financial_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dress_status_history ENABLE ROW LEVEL SECURITY;
 
--- 1. Profiles RLS
-CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Admins can update profiles" ON public.profiles FOR UPDATE USING (auth.role() = 'authenticated');
-
--- 2. Dresses RLS
-CREATE POLICY "Public can view non-archived dress public metadata" ON public.dresses FOR SELECT USING (operational_status != 'archived');
-CREATE POLICY "Admins full management on dresses" ON public.dresses FOR ALL USING (auth.role() = 'authenticated');
-
--- 3. Dress Photos RLS
+CREATE POLICY "Admins profiles management" ON public.profiles FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Public can view dress metadata" ON public.dresses FOR SELECT USING (operational_status != 'archived');
+CREATE POLICY "Admins dresses management" ON public.dresses FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Public view dress photos" ON public.dress_photos FOR SELECT USING (true);
-CREATE POLICY "Admins full management on dress photos" ON public.dress_photos FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admins dress photos management" ON public.dress_photos FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admins customers management" ON public.customers FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admins rentals management" ON public.rentals FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admins expenses management" ON public.expenses FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admins financial transactions management" ON public.financial_transactions FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admins status history management" ON public.dress_status_history FOR ALL USING (auth.role() = 'authenticated');
 
--- 4. Customers RLS (ADMIN ONLY - NO PUBLIC ACCESS)
-CREATE POLICY "Admins full management on customers" ON public.customers FOR ALL USING (auth.role() = 'authenticated');
-
--- 5. Rentals RLS (ADMIN ONLY - NO PUBLIC ACCESS)
-CREATE POLICY "Admins full management on rentals" ON public.rentals FOR ALL USING (auth.role() = 'authenticated');
-
--- 6. Status History RLS (ADMIN ONLY)
-CREATE POLICY "Admins full management on status history" ON public.dress_status_history FOR ALL USING (auth.role() = 'authenticated');
-
--- ============================================================================
--- SUPABASE STORAGE BUCKET CONFIGURATION & POLICIES
--- ============================================================================
-
+-- Storage Bucket Policies
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('dress-images', 'dress-images', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Bucket Storage RLS Policies
-CREATE POLICY "Public read access to dress images"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'dress-images');
-
-CREATE POLICY "Authenticated admin upload to dress images"
-  ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated admin update dress images"
-  ON storage.objects FOR UPDATE
-  USING (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated admin delete dress images"
-  ON storage.objects FOR DELETE
-  USING (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
+CREATE POLICY "Public read access to dress images" ON storage.objects FOR SELECT USING (bucket_id = 'dress-images');
+CREATE POLICY "Authenticated admin upload dress images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
+CREATE POLICY "Authenticated admin update dress images" ON storage.objects FOR UPDATE USING (bucket_id = 'dress-images' AND auth.role() = 'authenticated');
+CREATE POLICY "Authenticated admin delete dress images" ON storage.objects FOR DELETE USING (bucket_id = 'dress-images' AND auth.role() = 'authenticated');

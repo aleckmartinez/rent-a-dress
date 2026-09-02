@@ -8,6 +8,7 @@ import {
   Shirt,
   CalendarCheck,
   Users,
+  Wallet,
   ExternalLink,
   LogOut,
   Menu,
@@ -28,7 +29,6 @@ export function AdminSidebar() {
     } catch (err) {
       console.error('Sign out error:', err);
     } finally {
-      // Clear demo session cookie if present
       document.cookie = 'demo_admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
       router.push('/login');
       router.refresh();
@@ -40,6 +40,7 @@ export function AdminSidebar() {
     { label: 'Dresses', href: '/admin/dresses', icon: Shirt },
     { label: 'Rentals', href: '/admin/rentals', icon: CalendarCheck },
     { label: 'Customers', href: '/admin/customers', icon: Users },
+    { label: 'Finance', href: '/admin/finance', icon: Wallet },
   ];
 
   return (

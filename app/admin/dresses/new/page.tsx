@@ -12,18 +12,36 @@ export default function NewDressPage() {
   const [name, setName] = useState('');
   const [color, setColor] = useState('');
   const [size, setSize] = useState('Medium (M)');
+  const [cost, setCost] = useState('');
   const [price, setPrice] = useState('');
+  const [deposit, setDeposit] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  const handlePriceChange = (val: string) => {
+    setPrice(val);
+    if (val && !deposit) {
+      const p = Number(val);
+      if (!isNaN(p)) {
+        setDeposit(String(Math.round(p * 0.4)));
+      }
+    }
+  };
+
   const validate = () => {
     const errs: { [key: string]: string } = {};
     if (!name.trim()) errs.name = 'Dress Name is required.';
     if (!color.trim()) errs.color = 'Color is required.';
+    if (cost === '' || isNaN(Number(cost)) || Number(cost) < 0) {
+      errs.cost = 'Dress acquisition cost must be 0 or greater.';
+    }
     if (price === '' || isNaN(Number(price)) || Number(price) < 0) {
       errs.price = 'Default Rental Price must be 0 or greater.';
+    }
+    if (deposit === '' || isNaN(Number(deposit)) || Number(deposit) < 0) {
+      errs.deposit = 'Default Deposit must be 0 or greater.';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -39,7 +57,9 @@ export default function NewDressPage() {
         name: name.trim(),
         color: color.trim(),
         size,
+        cost: Number(cost),
         default_price: Number(price),
+        default_deposit: Number(deposit),
         main_photo_path: photoUrl,
         operational_status: 'available'
       });
@@ -65,7 +85,7 @@ export default function NewDressPage() {
         </Link>
         <div>
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Add New Dress</h1>
-          <p className="text-xs text-slate-500">Create a new item in your rental inventory</p>
+          <p className="text-xs text-slate-500">Specify dress details, acquisition cost, and rental pricing</p>
         </div>
       </div>
 
@@ -77,7 +97,6 @@ export default function NewDressPage() {
           </div>
         )}
 
-        {/* Photo Upload Section */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
             Dress Photo
@@ -96,7 +115,7 @@ export default function NewDressPage() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Blush Rose Silk Gown"
+              placeholder="e.g. Pink Evening Gown"
               className={`w-full rounded-xl border ${
                 errors.name ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-slate-50/50'
               } px-4 py-2.5 text-sm text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none transition-colors`}
@@ -141,10 +160,39 @@ export default function NewDressPage() {
             </select>
           </div>
 
-          {/* Default Rental Price */}
-          <div className="sm:col-span-2">
+          {/* FINANCIAL SECTION HEADER */}
+          <div className="sm:col-span-2 pt-2 border-t border-slate-100">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-pink-600">Financial & Pricing Setup</h3>
+          </div>
+
+          {/* Dress Cost (Acquisition) */}
+          <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-              Default Rental Price (₱) *
+              Dress Cost (Acquisition) *
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-2.5 text-sm font-bold text-slate-400">₱</span>
+              <input
+                type="number"
+                min="0"
+                step="100"
+                required
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                placeholder="8000"
+                className={`w-full rounded-xl border ${
+                  errors.cost ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-slate-50/50'
+                } pl-9 pr-4 py-2.5 text-sm text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none transition-colors`}
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Amount paid to acquire dress</p>
+            {errors.cost && <p className="mt-1 text-xs text-rose-600 font-medium">{errors.cost}</p>}
+          </div>
+
+          {/* Default Rental Price */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              Default Rental Price *
             </label>
             <div className="relative">
               <span className="absolute left-4 top-2.5 text-sm font-bold text-slate-400">₱</span>
@@ -154,14 +202,39 @@ export default function NewDressPage() {
                 step="50"
                 required
                 value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                onChange={(e) => handlePriceChange(e.target.value)}
                 placeholder="2500"
                 className={`w-full rounded-xl border ${
                   errors.price ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-slate-50/50'
                 } pl-9 pr-4 py-2.5 text-sm text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none transition-colors`}
               />
             </div>
+            <p className="text-[10px] text-slate-400 mt-1">Standard rental rate per event</p>
             {errors.price && <p className="mt-1 text-xs text-rose-600 font-medium">{errors.price}</p>}
+          </div>
+
+          {/* Default Deposit */}
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              Default Deposit Amount *
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-2.5 text-sm font-bold text-slate-400">₱</span>
+              <input
+                type="number"
+                min="0"
+                step="50"
+                required
+                value={deposit}
+                onChange={(e) => setDeposit(e.target.value)}
+                placeholder="1000"
+                className={`w-full rounded-xl border ${
+                  errors.deposit ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-slate-50/50'
+                } pl-9 pr-4 py-2.5 text-sm text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none transition-colors`}
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Refundable security deposit held during rental</p>
+            {errors.deposit && <p className="mt-1 text-xs text-rose-600 font-medium">{errors.deposit}</p>}
           </div>
         </div>
 

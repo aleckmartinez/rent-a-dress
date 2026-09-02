@@ -13,7 +13,8 @@ import {
   Archive,
   Save,
   Shirt,
-  Sparkles
+  Wallet,
+  TrendingUp
 } from 'lucide-react';
 import {
   getDressById,
@@ -43,7 +44,9 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
   const [editSize, setEditSize] = useState('');
+  const [editCost, setEditCost] = useState('');
   const [editPrice, setEditPrice] = useState('');
+  const [editDeposit, setEditDeposit] = useState('');
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -65,7 +68,9 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
         setEditName(data.name);
         setEditColor(data.color);
         setEditSize(data.size);
+        setEditCost(String(data.cost));
         setEditPrice(String(data.default_price));
+        setEditDeposit(String(data.default_deposit));
         setEditPhoto(data.main_photo_path);
 
         const [hData, rData] = await Promise.all([
@@ -117,7 +122,9 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
         name: editName,
         color: editColor,
         size: editSize,
+        cost: Number(editCost),
         default_price: Number(editPrice),
+        default_deposit: Number(editDeposit),
         main_photo_path: editPhoto
       });
       setDress(updated);
@@ -171,6 +178,14 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
     'unavailable'
   ];
 
+  // Dress-level financial metrics
+  const totalRentalRevenue = rentals
+    .filter((r) => r.status !== 'cancelled')
+    .reduce((sum, r) => sum + Number(r.rental_price || 0), 0);
+
+  const netPayback = totalRentalRevenue - dress.cost;
+  const isCostRecovered = totalRentalRevenue >= dress.cost && dress.cost > 0;
+
   return (
     <div className="flex flex-col gap-6">
       {/* Top Header */}
@@ -188,7 +203,7 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
               <StatusBadge status={dress.operational_status} />
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              {dress.color} • {dress.size} • {formatPrice(dress.default_price)}
+              {dress.color} • {dress.size} • Rate: {formatPrice(dress.default_price)} • Deposit: {formatPrice(dress.default_deposit)}
             </p>
           </div>
         </div>
@@ -218,7 +233,7 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
             {isEditing ? (
               <form onSubmit={handleSaveEdit} className="flex flex-col gap-4">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-2">
-                  Edit Dress Details
+                  Edit Dress Details & Pricing
                 </h3>
 
                 <div>
@@ -237,44 +252,72 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Color</label>
-                  <input
-                    type="text"
-                    required
-                    value={editColor}
-                    onChange={(e) => setEditColor(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Color</label>
+                    <input
+                      type="text"
+                      required
+                      value={editColor}
+                      onChange={(e) => setEditColor(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Size</label>
+                    <select
+                      value={editSize}
+                      onChange={(e) => setEditSize(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
+                    >
+                      <option value="XS / Extra Small">XS / Extra Small</option>
+                      <option value="Small (S)">Small (S)</option>
+                      <option value="Medium (M)">Medium (M)</option>
+                      <option value="Large (L)">Large (L)</option>
+                      <option value="XL / Extra Large">XL / Extra Large</option>
+                      <option value="Free Size">Free Size</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Size</label>
-                  <select
-                    value={editSize}
-                    onChange={(e) => setEditSize(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
-                  >
-                    <option value="XS / Extra Small">XS / Extra Small</option>
-                    <option value="Small (S)">Small (S)</option>
-                    <option value="Medium (M)">Medium (M)</option>
-                    <option value="Large (L)">Large (L)</option>
-                    <option value="XL / Extra Large">XL / Extra Large</option>
-                    <option value="Free Size">Free Size</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Default Rental Price (₱)</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Dress Cost (Acquisition ₱)</label>
                   <input
                     type="number"
                     min="0"
-                    step="50"
+                    step="100"
                     required
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(e.target.value)}
+                    value={editCost}
+                    onChange={(e) => setEditCost(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Rental Rate (₱)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      required
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Deposit (₱)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      required
+                      value={editDeposit}
+                      onChange={(e) => setEditDeposit(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
+                    />
+                  </div>
                 </div>
 
                 <button
@@ -309,18 +352,64 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
                     <span className="font-semibold">{dress.size}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Default Rate</span>
-                    <span className="font-bold text-slate-900">{formatPrice(dress.default_price)}</span>
+                    <span className="text-slate-400">Acquisition Cost</span>
+                    <span className="font-bold text-slate-900">{formatPrice(dress.cost)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Default Rental Rate</span>
+                    <span className="font-extrabold text-pink-600">{formatPrice(dress.default_price)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Default Deposit</span>
+                    <span className="font-bold text-slate-800">{formatPrice(dress.default_deposit)}</span>
                   </div>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Dress Level Financial Insights Card */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-soft flex flex-col gap-3">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+              <TrendingUp className="h-4 w-4 text-emerald-600" />
+              <h3 className="text-xs font-bold text-slate-900 uppercase">Dress Investment & Payback</h3>
+            </div>
+
+            <div className="flex flex-col gap-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Acquisition Cost</span>
+                <span className="font-bold text-slate-900">{formatPrice(dress.cost)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total Rental Revenue</span>
+                <span className="font-bold text-emerald-600">{formatPrice(totalRentalRevenue)}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-slate-100">
+                <span className="text-slate-500">Gross Contribution</span>
+                <span className={`font-extrabold ${netPayback >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {formatPrice(netPayback)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-1">
+              {isCostRecovered ? (
+                <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-2.5 text-[11px] font-bold text-emerald-700 flex items-center justify-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Acquisition Cost Recovered!
+                </div>
+              ) : (
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-[11px] text-slate-600 text-center font-medium">
+                  {formatPrice(dress.cost - totalRentalRevenue)} remaining to recover acquisition cost
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Right Column: Operational Status Switcher & History Audit */}
+        {/* Right Column: Operational Status & Audit Logs */}
         <div className="lg:col-span-2 flex flex-col gap-6">
-          {/* Status Change Control Panel */}
+          {/* Status Switcher */}
           <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-soft">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
@@ -413,6 +502,7 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
                       <th className="pb-2">Customer</th>
                       <th className="pb-2">Rental Period</th>
                       <th className="pb-2">Price</th>
+                      <th className="pb-2">Deposit</th>
                       <th className="pb-2">Status</th>
                     </tr>
                   </thead>
@@ -424,6 +514,7 @@ export default function DressDetailPage({ params }: { params: Promise<{ id: stri
                           {r.rental_start_date} to {r.rental_end_date}
                         </td>
                         <td className="py-2.5 font-bold text-slate-900">{formatPrice(r.total_price)}</td>
+                        <td className="py-2.5 font-medium text-slate-600">{formatPrice(r.deposit_amount)}</td>
                         <td className="py-2.5">
                           <StatusBadge status={r.status} type="rental" size="sm" />
                         </td>

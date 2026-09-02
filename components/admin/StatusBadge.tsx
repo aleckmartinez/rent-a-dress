@@ -1,48 +1,52 @@
 import React from 'react';
-import { DressOperationalStatus, RentalOrderStatus } from '@/lib/types/database';
+import { DressOperationalStatus, RentalOrderStatus, DepositStatus } from '@/lib/types/database';
 
 interface StatusBadgeProps {
-  status: DressOperationalStatus | RentalOrderStatus;
-  type?: 'dress' | 'rental';
+  status: DressOperationalStatus | RentalOrderStatus | DepositStatus;
+  type?: 'dress' | 'rental' | 'deposit';
   size?: 'sm' | 'md';
 }
 
 export function StatusBadge({ status, type = 'dress', size = 'md' }: StatusBadgeProps) {
-  let label = status.replace('_', ' ');
+  let label = status.replace(/_/g, ' ');
   label = label.charAt(0).toUpperCase() + label.slice(1);
+  if (status === 'eligible_for_return') label = 'Ready for Return';
 
-  // Configuration for visual indicator dot & background colors
   const getConfig = () => {
     switch (status) {
-      // Available / Confirmed
+      // Available / Confirmed / Returned Deposit
       case 'available':
       case 'confirmed':
       case 'completed':
+      case 'returned':
         return {
           dotColor: 'bg-emerald-500',
           bgColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
         };
 
-      // Reserved / Pending
+      // Reserved / Pending / Held Deposit
       case 'reserved':
       case 'pending':
+      case 'held':
         return {
           dotColor: 'bg-amber-500',
           bgColor: 'bg-amber-50 text-amber-700 border-amber-200',
         };
 
-      // On Rent / Preparing
+      // On Rent / Preparing / Ready for Return
       case 'on_rent':
       case 'preparing':
+      case 'eligible_for_return':
         return {
           dotColor: 'bg-pink-500',
           bgColor: 'bg-pink-50 text-pink-700 border-pink-200',
         };
 
-      // Cleaning / Inspection
+      // Cleaning / Inspection / Retained Deposit
       case 'cleaning':
       case 'inspection':
-      case 'returned':
+      case 'retained':
+      case 'partially_retained':
         return {
           dotColor: 'bg-indigo-500',
           bgColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',

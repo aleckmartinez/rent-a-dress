@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Sparkles, UserPlus, Users, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, UserPlus, Users, AlertTriangle, CheckCircle2, ShieldCheck } from 'lucide-react';
 import {
   getDresses,
   getCustomers,
@@ -16,32 +16,27 @@ import { Dress, Customer } from '@/lib/types/database';
 export default function NewRentalPage() {
   const router = useRouter();
 
-  // Inventory & Customer Options
   const [dresses, setDresses] = useState<Dress[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
 
-  // Form Mode: 'existing' | 'new'
   const [customerMode, setCustomerMode] = useState<'existing' | 'new'>('existing');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
 
-  // New Customer Fields
   const [custName, setCustName] = useState('');
   const [custPhone, setCustPhone] = useState('');
   const [custFacebook, setCustFacebook] = useState('');
 
-  // Rental Order Fields
   const [selectedDressId, setSelectedDressId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Pricing Fields
   const [rentalPrice, setRentalPrice] = useState<string>('0');
   const [additionalCharges, setAdditionalCharges] = useState<string>('0');
   const [discount, setDiscount] = useState<string>('0');
+  const [depositAmount, setDepositAmount] = useState<string>('0');
   const [notes, setNotes] = useState('');
 
-  // Availability State
   const [availabilityResult, setAvailabilityResult] = useState<{
     checked: boolean;
     available: boolean;
@@ -66,16 +61,15 @@ export default function NewRentalPage() {
     loadOptions();
   }, []);
 
-  // When dress changes, auto-populate default rental price (without modifying dress default price)
   const handleDressSelect = (dressId: string) => {
     setSelectedDressId(dressId);
     const dress = dresses.find((d) => d.id === dressId);
     if (dress) {
       setRentalPrice(String(dress.default_price));
+      setDepositAmount(String(dress.default_deposit));
     }
   };
 
-  // Availability Check Trigger
   useEffect(() => {
     async function checkAvailability() {
       if (selectedDressId && startDate && endDate) {
@@ -96,10 +90,10 @@ export default function NewRentalPage() {
     checkAvailability();
   }, [selectedDressId, startDate, endDate]);
 
-  // Price Calculation: Total = Rental Price + Additional Charges - Discount
   const rPrice = Math.max(0, Number(rentalPrice) || 0);
   const addCharges = Math.max(0, Number(additionalCharges) || 0);
   const disc = Math.max(0, Number(discount) || 0);
+  const depAmt = Math.max(0, Number(depositAmount) || 0);
   const calculatedTotal = Math.max(0, rPrice + addCharges - disc);
 
   const formatPrice = (p: number) =>
@@ -159,6 +153,7 @@ export default function NewRentalPage() {
         rental_price: rPrice,
         additional_charges: addCharges,
         discount: disc,
+        deposit_amount: depAmt,
         notes: notes.trim() || null,
         status: 'confirmed'
       });
@@ -185,7 +180,7 @@ export default function NewRentalPage() {
         </Link>
         <div>
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Create Rental Order</h1>
-          <p className="text-xs text-slate-500">Record a new dress rental booking and calculate totals</p>
+          <p className="text-xs text-slate-500">Record a new booking, set dates, and configure deposits</p>
         </div>
       </div>
 
@@ -215,7 +210,7 @@ export default function NewRentalPage() {
                 <option value="">-- Choose a Dress --</option>
                 {dresses.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name} ({d.color}, {d.size}) — {formatPrice(d.default_price)} [{d.operational_status}]
+                    {d.name} ({d.color}, {d.size}) — Rate: {formatPrice(d.default_price)} | Deposit: {formatPrice(d.default_deposit)}
                   </option>
                 ))}
               </select>
@@ -225,7 +220,6 @@ export default function NewRentalPage() {
               2. Customer Details
             </h2>
 
-            {/* Toggle Customer Mode */}
             <div className="flex items-center rounded-xl bg-slate-100 p-1">
               <button
                 type="button"
@@ -315,7 +309,7 @@ export default function NewRentalPage() {
             )}
           </div>
 
-          {/* Right Box: Dates & Price Breakdown */}
+          {/* Right Box: Dates, Pricing & Deposit */}
           <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-soft flex flex-col justify-between gap-5">
             <div className="flex flex-col gap-4">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">
@@ -349,7 +343,6 @@ export default function NewRentalPage() {
                 </div>
               </div>
 
-              {/* Real-time availability indicator badge */}
               {availabilityResult.checked && (
                 <div>
                   {availabilityResult.available ? (
@@ -367,7 +360,7 @@ export default function NewRentalPage() {
               )}
 
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 pt-2">
-                4. Pricing Breakdown
+                4. Pricing & Deposit Setup
               </h2>
 
               <div className="grid grid-cols-3 gap-3">
@@ -407,11 +400,29 @@ export default function NewRentalPage() {
                 </div>
               </div>
 
-              {/* Total Calculation Display */}
-              <div className="rounded-2xl bg-pink-50/60 border border-pink-100 p-4 flex items-center justify-between mt-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-amber-700 mb-1">
+                  Security Deposit Held (₱) *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="50"
+                  required
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
+                  className="w-full rounded-xl border border-amber-200 bg-amber-50/40 px-3 py-2 text-xs font-bold text-amber-900 focus:border-amber-500 focus:bg-white focus:outline-none"
+                />
+                <span className="text-[10px] text-slate-400">Refundable deposit (NOT counted as revenue while held)</span>
+              </div>
+
+              {/* Financial Calculation Box */}
+              <div className="rounded-2xl bg-pink-50/60 border border-pink-100 p-4 flex items-center justify-between mt-1">
                 <div className="flex flex-col text-xs text-pink-900 font-medium">
-                  <span>Calculation: ₱{rPrice} + ₱{addCharges} - ₱{disc}</span>
-                  <span className="text-[10px] text-pink-600 font-semibold uppercase">Total Rental Price</span>
+                  <span>Recognized Rental Revenue</span>
+                  <span className="text-[10px] text-pink-600 font-semibold">
+                    ₱{rPrice} + ₱{addCharges} - ₱{disc}
+                  </span>
                 </div>
                 <span className="text-xl font-extrabold text-pink-700">{formatPrice(calculatedTotal)}</span>
               </div>
@@ -424,7 +435,7 @@ export default function NewRentalPage() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
-                  placeholder="Deposit details, fitting notes, pickup arrangements..."
+                  placeholder="Deposit details, fitting notes..."
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
                 />
               </div>

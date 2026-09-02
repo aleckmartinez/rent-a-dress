@@ -12,17 +12,21 @@ import {
   XCircle,
   Shirt,
   User,
-  Clock
+  Clock,
+  Wallet,
+  ShieldCheck,
+  Coins
 } from 'lucide-react';
 import {
   getRentalById,
   updateRental,
   updateRentalStatus,
+  updateRentalDeposit,
   getDresses,
   getCustomers,
   checkDressAvailability
 } from '@/lib/services/api';
-import { Rental, Dress, Customer, RentalOrderStatus } from '@/lib/types/database';
+import { Rental, Dress, Customer, RentalOrderStatus, DepositStatus } from '@/lib/types/database';
 import { StatusBadge } from '@/components/admin/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 
@@ -43,6 +47,7 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
   const [rentalPrice, setRentalPrice] = useState('0');
   const [additionalCharges, setAdditionalCharges] = useState('0');
   const [discount, setDiscount] = useState('0');
+  const [depositAmount, setDepositAmount] = useState('0');
   const [status, setStatus] = useState<RentalOrderStatus>('confirmed');
   const [notes, setNotes] = useState('');
 
@@ -55,6 +60,15 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
 
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Deposit Update Modal State
+  const [depositModalOpen, setDepositModalOpen] = useState(false);
+  const [targetDepositStatus, setTargetDepositStatus] = useState<DepositStatus>('returned');
+  const [returnedAmt, setReturnedAmt] = useState<string>('0');
+  const [retainedAmt, setRetainedAmt] = useState<string>('0');
+  const [retentionReason, setRetentionReason] = useState<string>('');
+  const [depositUpdating, setDepositUpdating] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
 
   // Modals
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -78,8 +92,14 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
         setRentalPrice(String(rData.rental_price));
         setAdditionalCharges(String(rData.additional_charges));
         setDiscount(String(rData.discount));
+        setDepositAmount(String(rData.deposit_amount));
         setStatus(rData.status);
         setNotes(rData.notes || '');
+
+        setTargetDepositStatus(rData.deposit_status);
+        setReturnedAmt(String(rData.deposit_returned_amount || rData.deposit_amount));
+        setRetainedAmt(String(rData.deposit_retained_amount || 0));
+        setRetentionReason(rData.deposit_retention_reason || '');
       }
       setDresses(dList);
       setCustomers(cList);
@@ -94,7 +114,6 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
     loadRentalData();
   }, [resolvedParams.id]);
 
-  // Re-check availability when dress or dates change (excluding current rental id)
   useEffect(() => {
     async function checkAvailability() {
       if (rental && dressId && startDate && endDate) {
@@ -118,6 +137,7 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
   const rPrice = Math.max(0, Number(rentalPrice) || 0);
   const addCharges = Math.max(0, Number(additionalCharges) || 0);
   const disc = Math.max(0, Number(discount) || 0);
+  const depAmount = Math.max(0, Number(depositAmount) || 0);
   const calculatedTotal = Math.max(0, rPrice + addCharges - disc);
 
   const formatPrice = (p: number) =>
@@ -142,6 +162,7 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
         rental_price: rPrice,
         additional_charges: addCharges,
         discount: disc,
+        deposit_amount: depAmount,
         status,
         notes: notes.trim() || null
       });
@@ -206,6 +227,63 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
     }
   };
 
+  // Open Deposit Modal with preset defaults
+  const handleOpenDepositModal = (presetStatus: DepositStatus = 'returned') => {
+    if (!rental) return;
+    setDepositError(null);
+    setTargetDepositStatus(presetStatus);
+
+    if (presetStatus === 'returned') {
+      setReturnedAmt(String(rental.deposit_amount));
+      setRetainedAmt('0');
+    } else if (presetStatus === 'retained') {
+      setReturnedAmt('0');
+      setRetainedAmt(String(rental.deposit_amount));
+    }
+    setDepositModalOpen(true);
+  };
+
+  const handleProcessDeposit = async () => {
+    if (!rental) return;
+    setDepositError(null);
+
+    const ret = Number(returnedAmt) || 0;
+    const keep = Number(retainedAmt) || 0;
+
+    if (ret < 0 || keep < 0) {
+      setDepositError('Amounts cannot be negative.');
+      return;
+    }
+
+    if (ret + keep > rental.deposit_amount) {
+      setDepositError(`Returned (${formatPrice(ret)}) + Retained (${formatPrice(keep)}) exceeds original deposit (${formatPrice(rental.deposit_amount)}).`);
+      return;
+    }
+
+    if (keep > 0 && !retentionReason.trim()) {
+      setDepositError('Please provide a reason for retaining part or all of the deposit.');
+      return;
+    }
+
+    setDepositUpdating(true);
+    try {
+      const updated = await updateRentalDeposit(
+        rental.id,
+        targetDepositStatus,
+        ret,
+        keep,
+        retentionReason.trim() || undefined
+      );
+      setRental(updated);
+      setDepositModalOpen(false);
+    } catch (err: any) {
+      console.error('Error updating deposit:', err);
+      setDepositError(err.message || 'Failed to update deposit.');
+    } finally {
+      setDepositUpdating(false);
+    }
+  };
+
   if (loading) {
     return <div className="py-12 text-center text-xs text-slate-400">Loading rental details...</div>;
   }
@@ -238,6 +316,7 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
                 Order #{rental.id.slice(0, 8)}
               </h1>
               <StatusBadge status={rental.status} type="rental" />
+              <StatusBadge status={rental.deposit_status} type="deposit" size="sm" />
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               {rental.customer?.full_name} • {rental.dress?.name}
@@ -245,7 +324,7 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
 
-        {/* Quick Lifecycle Action Buttons */}
+        {/* Quick Lifecycle Actions */}
         <div className="flex items-center gap-2">
           {rental.status !== 'returned' && rental.status !== 'completed' && rental.status !== 'cancelled' && (
             <button
@@ -267,6 +346,39 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
             </button>
           )}
         </div>
+      </div>
+
+      {/* DEPOSIT MANAGEMENT SECTION */}
+      <div className="rounded-3xl border border-amber-200/80 bg-amber-50/40 p-6 shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 font-bold">
+            <Coins className="h-5 w-5" />
+          </div>
+          <div className="flex flex-col gap-1 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-amber-950 text-sm">Security Deposit Control</span>
+              <StatusBadge status={rental.deposit_status} type="deposit" size="sm" />
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-700">
+              <span>Deposit Held: <strong>{formatPrice(rental.deposit_amount)}</strong></span>
+              <span>Returned: <strong className="text-emerald-700">{formatPrice(rental.deposit_returned_amount)}</strong></span>
+              <span>Retained: <strong className="text-indigo-700">{formatPrice(rental.deposit_retained_amount)}</strong></span>
+            </div>
+            {rental.deposit_retention_reason && (
+              <p className="text-[11px] text-amber-800 font-medium italic mt-0.5">
+                Note: {rental.deposit_retention_reason}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <button
+          onClick={() => handleOpenDepositModal('returned')}
+          className="shrink-0 flex items-center justify-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors"
+        >
+          <Coins className="h-4 w-4" />
+          Process Deposit
+        </button>
       </div>
 
       <form onSubmit={handleSave} className="flex flex-col gap-6">
@@ -380,13 +492,12 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
                 </div>
               </div>
 
-              {/* Re-check Indicator */}
               {availabilityResult.checked && (
                 <div>
                   {availabilityResult.available ? (
                     <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span><strong>AVAILABLE!</strong> Re-check passed excluding this order.</span>
+                      <span><strong>AVAILABLE!</strong> Date check passed.</span>
                     </div>
                   ) : (
                     <div className="rounded-2xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800 flex items-start gap-2">
@@ -433,8 +544,20 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[11px] font-semibold text-amber-800 mb-1">Deposit Amount (₱)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="50"
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
+                  className="w-full rounded-xl border border-amber-200 bg-amber-50/40 px-3 py-2 text-xs font-bold text-amber-900 focus:border-amber-500 focus:bg-white focus:outline-none"
+                />
+              </div>
+
               <div className="rounded-2xl bg-pink-50/60 border border-pink-100 p-4 flex items-center justify-between mt-2">
-                <span className="text-xs text-pink-900 font-medium">Updated Total</span>
+                <span className="text-xs text-pink-900 font-semibold">Recognized Rental Revenue</span>
                 <span className="text-xl font-extrabold text-pink-700">{formatPrice(calculatedTotal)}</span>
               </div>
             </div>
@@ -458,6 +581,98 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
       </form>
+
+      {/* Deposit Processing Modal */}
+      <Modal
+        isOpen={depositModalOpen}
+        onClose={() => setDepositModalOpen(false)}
+        onConfirm={handleProcessDeposit}
+        title="Process Security Deposit"
+        description={`Original Deposit Amount: ${formatPrice(rental.deposit_amount)}`}
+        confirmLabel="Save Deposit Decision"
+        isLoading={depositUpdating}
+      >
+        <div className="flex flex-col gap-4 mt-2">
+          {depositError && (
+            <div className="rounded-xl bg-rose-50 border border-rose-200 p-2.5 text-xs font-semibold text-rose-700">
+              {depositError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              Deposit Decision Status
+            </label>
+            <select
+              value={targetDepositStatus}
+              onChange={(e) => {
+                const newSt = e.target.value as DepositStatus;
+                setTargetDepositStatus(newSt);
+                if (newSt === 'returned') {
+                  setReturnedAmt(String(rental.deposit_amount));
+                  setRetainedAmt('0');
+                } else if (newSt === 'retained') {
+                  setReturnedAmt('0');
+                  setRetainedAmt(String(rental.deposit_amount));
+                }
+              }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-semibold text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
+            >
+              <option value="held">Held (Pending Inspection)</option>
+              <option value="eligible_for_return">Ready for Return</option>
+              <option value="returned">Return Full Deposit</option>
+              <option value="partially_retained">Partially Retain Deposit</option>
+              <option value="retained">Retain Full Deposit (Damage/Fee)</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Amount Returned (₱)</label>
+              <input
+                type="number"
+                min="0"
+                max={rental.deposit_amount}
+                value={returnedAmt}
+                onChange={(e) => {
+                  const val = Number(e.target.value) || 0;
+                  setReturnedAmt(e.target.value);
+                  setRetainedAmt(String(Math.max(0, rental.deposit_amount - val)));
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-emerald-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Amount Retained (₱)</label>
+              <input
+                type="number"
+                min="0"
+                max={rental.deposit_amount}
+                value={retainedAmt}
+                onChange={(e) => {
+                  const val = Number(e.target.value) || 0;
+                  setRetainedAmt(e.target.value);
+                  setReturnedAmt(String(Math.max(0, rental.deposit_amount - val)));
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-indigo-800 focus:border-indigo-500 focus:bg-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Retention Reason / Damage Notes
+            </label>
+            <textarea
+              value={retentionReason}
+              onChange={(e) => setRetentionReason(e.target.value)}
+              rows={2}
+              placeholder="e.g. Fabric tear on hem, late return fee..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-800 focus:border-pink-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+        </div>
+      </Modal>
 
       {/* Return Workflow Confirmation Modal */}
       <Modal

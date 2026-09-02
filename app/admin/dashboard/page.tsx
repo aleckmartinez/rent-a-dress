@@ -2,28 +2,44 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Shirt, CalendarCheck, Users, Sparkles, Plus, CheckCircle2, Clock, Sparkle, ArrowRight } from 'lucide-react';
-import { getDresses, getRentals, getCustomers } from '@/lib/services/api';
-import { Dress, Rental, Customer } from '@/lib/types/database';
+import {
+  Shirt,
+  CalendarCheck,
+  Users,
+  Sparkles,
+  Plus,
+  CheckCircle2,
+  Clock,
+  ArrowRight,
+  TrendingUp,
+  Receipt,
+  Wallet,
+  Coins
+} from 'lucide-react';
+import { getDresses, getRentals, getCustomers, getFinanceSummary } from '@/lib/services/api';
+import { Dress, Rental, Customer, FinanceSummary } from '@/lib/types/database';
 import { StatusBadge } from '@/components/admin/StatusBadge';
 
 export default function AdminDashboardPage() {
   const [dresses, setDresses] = useState<Dress[]>([]);
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [finSummary, setFinSummary] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [dList, rList, cList] = await Promise.all([
+        const [dList, rList, cList, fSum] = await Promise.all([
           getDresses(),
           getRentals(),
-          getCustomers()
+          getCustomers(),
+          getFinanceSummary('this_month')
         ]);
         setDresses(dList);
         setRentals(rList);
         setCustomers(cList);
+        setFinSummary(fSum);
       } catch (err) {
         console.error('Error loading dashboard data:', err);
       } finally {
@@ -34,9 +50,11 @@ export default function AdminDashboardPage() {
   }, []);
 
   const totalDresses = dresses.length;
-  const availableDresses = dresses.filter(d => d.operational_status === 'available').length;
-  const onRentDresses = dresses.filter(d => d.operational_status === 'on_rent').length;
-  const cleaningPreparing = dresses.filter(d => d.operational_status === 'cleaning' || d.operational_status === 'preparing' || d.operational_status === 'inspection').length;
+  const availableDresses = dresses.filter((d) => d.operational_status === 'available').length;
+  const onRentDresses = dresses.filter((d) => d.operational_status === 'on_rent').length;
+  const cleaningPreparing = dresses.filter(
+    (d) => d.operational_status === 'cleaning' || d.operational_status === 'preparing' || d.operational_status === 'inspection'
+  ).length;
   const totalCustomers = customers.length;
 
   const upcomingRentals = rentals.slice(0, 5);
@@ -57,7 +75,7 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Dashboard</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Rental business overview & inventory operational status</p>
+          <p className="text-xs text-slate-500 mt-0.5">Rental business overview, operational inventory & monthly finances</p>
         </div>
 
         <div className="flex items-center gap-2.5">
@@ -78,7 +96,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* Inventory & Operational KPI Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
           <div className="flex items-center justify-between">
@@ -88,7 +106,7 @@ export default function AdminDashboardPage() {
             </span>
           </div>
           <p className="mt-3 text-2xl font-extrabold text-slate-900">{loading ? '...' : totalDresses}</p>
-          <p className="text-[11px] text-slate-400 mt-1">In dress inventory</p>
+          <p className="text-[11px] text-slate-400 mt-1">In inventory</p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
@@ -110,7 +128,7 @@ export default function AdminDashboardPage() {
             </span>
           </div>
           <p className="mt-3 text-2xl font-extrabold text-pink-600">{loading ? '...' : onRentDresses}</p>
-          <p className="text-[11px] text-slate-400 mt-1">Currently with customer</p>
+          <p className="text-[11px] text-slate-400 mt-1">Currently out</p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
@@ -121,7 +139,7 @@ export default function AdminDashboardPage() {
             </span>
           </div>
           <p className="mt-3 text-2xl font-extrabold text-indigo-600">{loading ? '...' : cleaningPreparing}</p>
-          <p className="text-[11px] text-slate-400 mt-1">Pending admin release</p>
+          <p className="text-[11px] text-slate-400 mt-1">Pending release</p>
         </div>
 
         <div className="col-span-2 lg:col-span-1 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
@@ -132,7 +150,50 @@ export default function AdminDashboardPage() {
             </span>
           </div>
           <p className="mt-3 text-2xl font-extrabold text-slate-900">{loading ? '...' : totalCustomers}</p>
-          <p className="text-[11px] text-slate-400 mt-1">Total customer records</p>
+          <p className="text-[11px] text-slate-400 mt-1">Customer profiles</p>
+        </div>
+      </div>
+
+      {/* Financial Summary Cards Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Revenue This Month</span>
+            <TrendingUp className="h-4 w-4 text-emerald-600" />
+          </div>
+          <p className="mt-2 text-xl font-extrabold text-emerald-600">
+            {loading ? '...' : formatPrice(finSummary?.recognized_revenue || 0)}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Expenses This Month</span>
+            <Receipt className="h-4 w-4 text-rose-600" />
+          </div>
+          <p className="mt-2 text-xl font-extrabold text-rose-600">
+            {loading ? '...' : formatPrice(finSummary?.total_expenses || 0)}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Net Income This Month</span>
+            <Wallet className="h-4 w-4 text-pink-600" />
+          </div>
+          <p className="mt-2 text-xl font-extrabold text-pink-600">
+            {loading ? '...' : formatPrice(finSummary?.net_income || 0)}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deposits Held</span>
+            <Coins className="h-4 w-4 text-amber-600" />
+          </div>
+          <p className="mt-2 text-xl font-extrabold text-amber-700">
+            {loading ? '...' : formatPrice(finSummary?.deposits_held || 0)}
+          </p>
         </div>
       </div>
 
@@ -165,6 +226,7 @@ export default function AdminDashboardPage() {
                   <th className="pb-3 px-2">Dress</th>
                   <th className="pb-3 px-2">Rental Period</th>
                   <th className="pb-3 px-2">Total Price</th>
+                  <th className="pb-3 px-2">Deposit</th>
                   <th className="pb-3 px-2">Status</th>
                   <th className="pb-3 px-2 text-right">Action</th>
                 </tr>
@@ -183,6 +245,9 @@ export default function AdminDashboardPage() {
                     </td>
                     <td className="py-3 px-2 font-bold text-slate-900">
                       {formatPrice(rental.total_price)}
+                    </td>
+                    <td className="py-3 px-2 font-medium text-slate-700">
+                      {formatPrice(rental.deposit_amount)}
                     </td>
                     <td className="py-3 px-2">
                       <StatusBadge status={rental.status} type="rental" size="sm" />
